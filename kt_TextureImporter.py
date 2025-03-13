@@ -57,48 +57,6 @@ class ktTextureRowWidget(QtWidgets.QWidget):
 
         self.setLayout(layout)
 
-class TextureInfoWidget(QtWidgets.QWidget):
-    def __init__(self, normal=False, displacement=False):
-        super().__init__()
-
-        # Using the same logic to handle visibility and creation of texture rows
-        self.normal = normal
-        self.displacement = displacement
-        self.visibility = False
-
-        # Create texture input widgets
-        self.baseColorRow = ktTextureRowWidget("Base Color")
-        self.metalnessRow = ktTextureRowWidget("Metalness")
-        self.specularRoughRow = ktTextureRowWidget("Specular Rough")
-        self.normalRow = ktTextureRowWidget("Normal") if self.normal else None
-        self.displacementRow = ktTextureRowWidget("Displacement") if self.displacement else None
-
-        # Create layout for the texture rows
-        self.createLayouts()
-
-    def createLayouts(self):
-        """Create the layout for all texture rows."""
-        self.informationLYT = QtWidgets.QVBoxLayout(self)
-
-        # Add texture input widgets dynamically
-        for row in [self.baseColorRow, self.metalnessRow, self.specularRoughRow, self.normalRow, self.displacementRow]:
-            if row:
-                self.informationLYT.addWidget(row)
-
-        self.setLayout(self.informationLYT)
-
-    def toggleVisibility(self, visibility):
-        """Toggle the visibility of the texture rows."""
-        self.baseColorRow.setVisible(visibility)
-        self.metalnessRow.setVisible(visibility)
-        self.specularRoughRow.setVisible(visibility)
-
-        if self.normalRow:
-            self.normalRow.setVisible(visibility)
-
-        if self.displacementRow:
-            self.displacementRow.setVisible(visibility)
-            
     
 class ktTextureWidget(QtWidgets.QWidget):
     def __init__(self, normal=False, displacement=False):
@@ -161,17 +119,10 @@ class ktTextureWidget(QtWidgets.QWidget):
 
         # Create texture input widgets
         self.baseColorRow = ktTextureRowWidget("Base Color")
-        self.baseColorRow.setVisible(self.visibility)
         self.metalnessRow = ktTextureRowWidget("Metalness")
-        self.metalnessRow.setVisible(self.visibility)
         self.specularRoughRow = ktTextureRowWidget("Specular Rough")
-        self.specularRoughRow.setVisible(self.visibility)
         self.normalRow = ktTextureRowWidget("Normal") if self.normal else None
-        if self.normalRow:
-            self.normalRow.setVisible(self.visibility)
         self.displacementRow = ktTextureRowWidget("Displacement") if self.displacement else None
-        if self.displacementRow:
-            self.displacementRow.setVisible(self.visibility)
 
     def createLayouts(self):
         self.mainLayout = QtWidgets.QVBoxLayout(self)
@@ -191,7 +142,13 @@ class ktTextureWidget(QtWidgets.QWidget):
         self.textureLYT.addWidget(self.visibilityBTN, 0, col) 
 
         """Information Layout"""
-        self.informationLYT = QtWidgets.QVBoxLayout(self)  
+        self.informationLYT = QtWidgets.QVBoxLayout(self) 
+
+        self.informationGB = QtWidgets.QGroupBox("")
+        self.informationGB.setLayout(self.informationLYT)
+        self.informationGB.setVisible(self.visibility)
+        self.informationGB.setStyleSheet("background-color: gray")
+        
         
         # Add texture input widgets dynamically
         for row in [self.baseColorRow, self.metalnessRow, self.specularRoughRow, self.normalRow, self.displacementRow]:
@@ -200,7 +157,7 @@ class ktTextureWidget(QtWidgets.QWidget):
 
 
         self.mainLayout.addLayout(self.textureLYT)
-        self.mainLayout.addLayout(self.informationLYT)
+        self.mainLayout.addWidget(self.informationGB)
 
     def createConnections(self):
         """Connect signals to slots for automatic checkbox updating."""
@@ -221,17 +178,7 @@ class ktTextureWidget(QtWidgets.QWidget):
         """Toggle the visibility of the texture rows using the visibility flag."""
         # Toggle visibility flag
         self.visibility = not self.visibility
-        
-        # Set the visibility of each row based on the visibility flag
-        self.baseColorRow.setVisible(self.visibility)
-        self.metalnessRow.setVisible(self.visibility)
-        self.specularRoughRow.setVisible(self.visibility)
-
-        if self.normal:
-            self.normalRow.setVisible(self.visibility)
-
-        if self.displacement:
-            self.displacementRow.setVisible(self.visibility)
+        self.informationGB.setVisible(self.visibility)
 
             
 #region Main
