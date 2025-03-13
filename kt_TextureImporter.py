@@ -14,6 +14,9 @@ class Texture(object):
         self.normal = normal
         self.displacement = displacement
     
+    def createTexture(self):
+        pass
+    
 class ArnoldTexture(object):
     """docstring for ClassName."""
     def __init__(self, baseColor, metalness, specularRough, normal, displacement):
@@ -25,6 +28,7 @@ class KarmaTexture(object):
         super().__init__(baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement)
 #endregion
 
+#region Widget
 class ktTextureRowWidget(QtWidgets.QWidget):
     def __init__(self, label, fileType=hou.fileType.Image):
         super().__init__()
@@ -52,8 +56,8 @@ class ktTextureRowWidget(QtWidgets.QWidget):
         layout.addWidget(self.txt)
         layout.addWidget(self.btn)
 
-        layout.setSpacing(0)  # Remove internal spacing
-        layout.setContentsMargins(0, 0, 0, 0)  # Remove margins around the layout
+        layout.setSpacing(5)  # Remove internal spacing
+        layout.setContentsMargins(5, 0, 5, 0)  # Remove margins around the layout
 
         self.setLayout(layout)
 
@@ -68,6 +72,7 @@ class ktTextureWidget(QtWidgets.QWidget):
         self.normal = normal
         self.displacement = displacement
         self.visibility = False
+
         
         """
         UI Creation
@@ -81,13 +86,14 @@ class ktTextureWidget(QtWidgets.QWidget):
         """Creates a row with a QLabel and QCheckBox."""
         layout = QtWidgets.QVBoxLayout()
         lbl = QtWidgets.QLabel(label)
+        lbl.setFixedHeight(15)
+        lbl.setStyleSheet("font-size: 14px;")
         cb = QtWidgets.QCheckBox()
         cb.setEnabled(False)
-
         layout.addWidget(lbl)
         layout.addWidget(cb)
 
-        layout.setSpacing(0) 
+        layout.setSpacing(1) 
         layout.setContentsMargins(0, 0, 0, 0)
         return layout, cb
 
@@ -103,16 +109,21 @@ class ktTextureWidget(QtWidgets.QWidget):
         self.normalSumLayout, self.normalCB = self._createSummaryRow("N") if self.normal else (None, None)
         self.displacementSumLayout, self.displacementCB = self._createSummaryRow("D") if self.displacement else (None, None)
 
-        self.visibilityBTN = QtWidgets.QPushButton(">>")
+        self.visibilityBTN = QtWidgets.QPushButton() 
+        #https://houdini-icons.dev/
+        self.iconCollapsed = hou.qt.Icon("KEYS_Right")   # Left arrow when collapsed hicon:/SVGIcons.index?KEYS_Right.svg
+        self.iconExpanded =  hou.qt.Icon("KEYS_Down")    # Down arrow when expanded hicon:/SVGIcons.index?KEYS_Down.svg
+        self.visibilityBTN.setIcon(self.iconCollapsed)  # Default icon
         self.visibilityBTN.setFlat(True)
+        self.visibilityBTN.setFixedWidth(30)
 
         # Set the button's style using setStyleSheet
         self.visibilityBTN.setStyleSheet("""
             QPushButton:flat {
                 color: white;               /* White text */
                 font-size: 16px;            /* Font size */
-                border: 1px solid black;
-                border-radius: 5px;         /* Rounded corners */
+                border: 0px solid black;
+                border-radius: 0px;         /* Rounded corners */
                 padding: 10px 20px;         /* Padding inside the button */
             }
         """)
@@ -136,8 +147,9 @@ class ktTextureWidget(QtWidgets.QWidget):
         self.headerGB.setFixedHeight(60)
         self.headerGB.setStyleSheet("""
             QGroupBox {
-                background-color: dark-gray;
-                border: 0px solid dark-gray;  /* Border color and thickness */
+                background-color: #4D4D4D;
+                border: 0px solid #4D4D4D;  /* Border color and thickness */
+                border-radius: 0px;
             }
 
             QGroupBox::title {
@@ -163,7 +175,19 @@ class ktTextureWidget(QtWidgets.QWidget):
         self.informationGB = QtWidgets.QGroupBox("")
         self.informationGB.setLayout(self.informationLYT)
         self.informationGB.setVisible(self.visibility)
-        self.informationGB.setStyleSheet("background-color: gray; padding: 0; margin: 0;")
+        self.informationGB.setStyleSheet("""
+            QGroupBox {
+                background-color: #363636;
+                border: 0px solid #363636;  /* Border color and thickness */
+                border-radius: 0px;
+                padding: 0;
+                margin: 0;
+            }
+
+            QGroupBox::title {
+                color: white;  /* Title color (optional) */
+            }
+        """)
         
         
         # Add texture input widgets dynamically
@@ -196,7 +220,8 @@ class ktTextureWidget(QtWidgets.QWidget):
         # Toggle visibility flag
         self.visibility = not self.visibility
         self.informationGB.setVisible(self.visibility)
-
+        self.visibilityBTN.setIcon(self.iconExpanded if self.visibility else self.iconCollapsed)
+#endregion
             
 #region Main
 
@@ -219,8 +244,9 @@ class CreateWindow(QtWidgets.QDialog):
     def __init__(self, parent=getHoudiniMainWindow()):
         super(CreateWindow, self).__init__(parent)
         
-        self.setWindowTitle('Texture importer | kt_TextureImporter')
+        self.setWindowTitle('kt_TextureImporter')
         self.setMinimumWidth(600)
+        self.setMinimumHeight(700)
         self.setWindowFlags(self.windowFlags() ^ QtCore.Qt.WindowContextHelpButtonHint)
         
         self.createWidgets()
@@ -234,46 +260,130 @@ class CreateWindow(QtWidgets.QDialog):
         self.textureTypeCMB = QtWidgets.QComboBox()
         self.textureTypeCMB.addItem('Arnold')
         self.textureTypeCMB.addItem('Karma')
-        self.textureTypeCMB.setFixedWidth(150)
-        self.clearBTN = QtWidgets.QPushButton("Clear")
-        self.clearBTN.setFixedHeight(40)
+        self.textureTypeCMB.setFixedWidth(120)
+
+        self.matPathTXT = QtWidgets.QLineEdit()
+        self.matPathTXT.setReadOnly(True)
+        self.matPathBTN = hou.qt.NodeChooserButton()
 
 
         self.folderPathTXT = QtWidgets.QLineEdit()
+        self.folderPathTXT.setReadOnly(True)
         self.folderPathBTN = hou.qt.FileChooserButton()
         self.folderPathBTN.setFileChooserTitle("Please select a directory")
         self.folderPathBTN.setFileChooserMode(hou.fileChooserMode.Read)
         self.folderPathBTN.setFileChooserFilter(hou.fileType.Directory)
 
-        self.testTextWidget = ktTextureWidget(normal=True, displacement=True)
+
+        self.selectAllCB = QtWidgets.QCheckBox()
+        self.createBTN = QtWidgets.QPushButton("Create")
+        self.clearBTN = QtWidgets.QPushButton("Clear")
+        self.clearBTN.setFixedWidth(60)
+        self.clearBTN.setFixedHeight(34)
+        self.clearBTN.setStyleSheet("padding: 0px;")
+
 
             
     def createLayouts(self):
         """Function that creates all the layouts and add widgets"""
         self.mainLayout = QtWidgets.QVBoxLayout(self)
 
+        """ Header """
         self.textureTypeLYT = QtWidgets.QHBoxLayout()
         self.textureTypeLYT.addWidget(QtWidgets.QLabel('Texture: '))
         self.textureTypeLYT.addWidget(self.textureTypeCMB)
-        self.textureTypeLYT.addStretch(1)
-        self.textureTypeLYT.addWidget(self.clearBTN)
+        self.textureTypeLYT.addWidget(QtWidgets.QLabel(' Material Library: '))
+        self.textureTypeLYT.addWidget(self.matPathTXT)
+        self.textureTypeLYT.addWidget(self.matPathBTN)
+        
 
+        """ Folder """
         self.folderPathLYT = QtWidgets.QHBoxLayout()
         self.folderPathLYT.addWidget(QtWidgets.QLabel('Folder: '))
         self.folderPathLYT.addWidget(self.folderPathTXT)
         self.folderPathLYT.addWidget(self.folderPathBTN)
 
+        """ Execution"""
+        self.execLYT = QtWidgets.QHBoxLayout()
+        self.execLYT.addWidget(self.selectAllCB)
+        self.execLYT.addWidget(QtWidgets.QLabel('Select All'))
+        self.execLYT.addStretch()
+        self.execLYT.addWidget(self.createBTN)
+        self.execLYT.addWidget(self.clearBTN)
+
+
+        """ TEXTURES CONTAINER """
+        self.texScroll = QtWidgets.QScrollArea()             # Scroll Area which contains the widgets, set as the centralWidget
+        self.texContainer = QtWidgets.QWidget()                 # Widget that contains the collection of Vertical Box
+        self.texLYT = QtWidgets.QVBoxLayout()               # The Vertical Box that contains the Horizontal Boxes of  labels and buttons
+        self.texLYT.setContentsMargins(0, 0, 0, 0)
+        self.texLYT.setSpacing(0)
+
+        self.texContainer.setLayout(self.texLYT)
+
+        #Scroll Area Properties
+        self.texScroll.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)
+        self.texScroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.texScroll.setWidgetResizable(True)
+        self.texScroll.setWidget(self.texContainer)
+
+        """ MAIN """
         self.mainLayout.addLayout(self.textureTypeLYT)
         self.mainLayout.addLayout(self.folderPathLYT)
+        self.mainLayout.addSpacing(25)
+        self.mainLayout.addLayout(self.execLYT)
+        self.mainLayout.addWidget(self.texScroll)
 
-        self.mainLayout.addWidget(self.testTextWidget)
 
-            
     def createConnections(self):
-        self.folderPathBTN.fileSelected.connect(self.setTexturePathLineEditText)
-            
-    def setTexturePathLineEditText(self, file_path):
-        self.folderPathTXT.setText(file_path)
+        self.folderPathBTN.fileSelected.connect(self.onClick_folderPathBTN)
+        self.matPathBTN.nodeSelected.connect(self.onClick_matPathBTN)
+        self.clearBTN.clicked.connect(self.onClick_clearBTN)
+        self.selectAllCB.clicked.connect(self.onChange_selectAllCB)
+
+    def onClick_clearBTN(self):
+        self.clearLayout(self.texLYT)
+    
+    def onClick_folderPathBTN(self, filePath):
+        if filePath:
+            self.folderPathTXT.setText(filePath)
+            self.loadTextures()
+    
+    def onClick_matPathBTN(self, node):
+        if node:
+            self.matPathTXT.setText(str(node.path()))
+    
+    def onChange_selectAllCB(self):
+        if self.selectAllCB.isChecked:
+            self.checkAllTextures()
+    
+    def loadTextures(self):
+        self.clearLayout(self.texLYT)
+        self.texList = []
+
+        for i in range(3):
+            textureWD = ktTextureWidget(normal=True, displacement=True)
+            self.texLYT.addWidget(textureWD)
+            self.texList.append(textureWD)
+
+        self.texLYT.addStretch()
+
+    def checkAllTextures(self):
+        for textureWD in self.texList:
+            textureWD.selectedCB.setChecked(self.selectAllCB.isChecked())
+
+    def clearLayout(self, layout):
+        self.selectAllCB.setChecked(False)
+
+        for i in reversed(range(layout.count())):
+            item = layout.itemAt(i)
+            if item.widget(): 
+                widgetToRemove = item.widget()
+                layout.removeWidget(widgetToRemove)
+                widgetToRemove.setParent(None)
+            else: 
+                layout.removeItem(item)
+
     
     def assignTexture(self):
         material = hou.selectedNodes()[0]
