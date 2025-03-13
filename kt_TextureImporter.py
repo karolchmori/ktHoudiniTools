@@ -126,28 +126,44 @@ class ktTextureWidget(QtWidgets.QWidget):
 
     def createLayouts(self):
         self.mainLayout = QtWidgets.QVBoxLayout(self)
-        self.textureLYT = QtWidgets.QGridLayout(self)
+        self.mainLayout.setContentsMargins(0, 0, 0, 0)
+        self.mainLayout.setSpacing(0)
+
+        self.headerLYT = QtWidgets.QHBoxLayout(self)
+        self.headerLYT.setContentsMargins(0, 0, 0, 0)
+        self.headerGB = QtWidgets.QGroupBox("")
+        self.headerGB.setLayout(self.headerLYT)
+        self.headerGB.setFixedHeight(60)
+        self.headerGB.setStyleSheet("""
+            QGroupBox {
+                background-color: dark-gray;
+                border: 0px solid dark-gray;  /* Border color and thickness */
+            }
+
+            QGroupBox::title {
+                color: white;  /* Title color (optional) */
+            }
+        """)
 
         # Add Checkboxes
-        self.textureLYT.addWidget(self.selectedCB, 0, 0)
-        self.textureLYT.addWidget(self.nameTXT, 0, 1)
+        self.headerLYT.addWidget(self.selectedCB)
+        self.headerLYT.addWidget(self.nameTXT)
 
         # Add layouts to grid
-        col = 2
         for layout in [self.baseColorSumLayout, self.metalnessSumLayout, self.specularRoughSumLayout, self.normalSumLayout, self.displacementSumLayout]:
-            if layout:
-                self.textureLYT.addLayout(layout, 0, col) 
-                col += 1
+            self.headerLYT.addLayout(layout) 
+                
         
-        self.textureLYT.addWidget(self.visibilityBTN, 0, col) 
+        self.headerLYT.addWidget(self.visibilityBTN) 
 
         """Information Layout"""
         self.informationLYT = QtWidgets.QVBoxLayout(self) 
+        self.informationLYT.setContentsMargins(0, 5, 0, 5)  # Remove all margins (left, top, right, bottom)
 
         self.informationGB = QtWidgets.QGroupBox("")
         self.informationGB.setLayout(self.informationLYT)
         self.informationGB.setVisible(self.visibility)
-        self.informationGB.setStyleSheet("background-color: gray")
+        self.informationGB.setStyleSheet("background-color: gray; padding: 0; margin: 0;")
         
         
         # Add texture input widgets dynamically
@@ -156,7 +172,8 @@ class ktTextureWidget(QtWidgets.QWidget):
                 self.informationLYT.addWidget(row)
 
 
-        self.mainLayout.addLayout(self.textureLYT)
+        #self.mainLayout.addLayout(self.headerLYT)
+        self.mainLayout.addWidget(self.headerGB)
         self.mainLayout.addWidget(self.informationGB)
 
     def createConnections(self):
@@ -171,7 +188,7 @@ class ktTextureWidget(QtWidgets.QWidget):
         if self.displacement:
             self.displacementRow.txt.textChanged.connect(lambda text: self.displacementCB.setChecked(bool(text.strip())))
 
-            # Connect visibility button to toggle texture row visibility
+        # Connect visibility button to toggle texture row visibility
         self.visibilityBTN.clicked.connect(self.toggleVisibility)
 
     def toggleVisibility(self):
