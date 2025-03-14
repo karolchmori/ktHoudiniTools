@@ -1,5 +1,6 @@
 import hou
 import os
+import re
 from PySide2 import QtCore
 from PySide2 import QtWidgets
 from PySide2 import QtGui
@@ -7,25 +8,36 @@ from PySide2 import QtGui
 #region Texture
 class Texture(object):
     """docstring for ClassName."""
-    def __init__(self, baseColor, metalness, specularRough, normal=None, displacement=None):
+    def __init__(self, name, baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None):
+        self.name = name
         self.baseColor = baseColor
         self.metalness = metalness
         self.specularRough = specularRough
         self.normal = normal
         self.displacement = displacement
     
-    def createTexture(self):
+    def createTexture(self): #We need it here so we can create textures depending on the type (it doesn't depend on the widget or window)
         pass
-    
-class ArnoldTexture(object):
-    """docstring for ClassName."""
-    def __init__(self, baseColor, metalness, specularRough, normal, displacement):
-        super().__init__(baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement)
 
-class KarmaTexture(object):
+    def showInformation(self):
+        print("-----------------------------------------")
+        print(f"name: {self.name}")
+        print(f"baseColor: {self.baseColor}")
+        print(f"metalness: {self.metalness}")
+        print(f"specularRough: {self.specularRough}")
+        print(f"normal: {self.normal}")
+        print(f"displacement: {self.displacement}")
+        print("-----------------------------------------")
+
+class ArnoldTexture(Texture):
     """docstring for ClassName."""
-    def __init__(self, baseColor, metalness, specularRough, normal, displacement):
-        super().__init__(baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement)
+    def __init__(self, name="ArnoldTexture", baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None):
+        super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement)
+
+class KarmaTexture(Texture):
+    """docstring for ClassName."""
+    def __init__(self, name="KarmaTexture", baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None):
+        super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement)
 #endregion
 
 #region Widget
@@ -63,7 +75,7 @@ class ktTextureRowWidget(QtWidgets.QWidget):
 
     
 class ktTextureWidget(QtWidgets.QWidget):
-    def __init__(self, normal=False, displacement=False):
+    def __init__(self, normal=False, displacement=False, texture=None):
         super().__init__()
         
         self.baseColor = True
@@ -72,6 +84,7 @@ class ktTextureWidget(QtWidgets.QWidget):
         self.normal = normal
         self.displacement = displacement
         self.visibility = False
+        self.texture = texture
 
         
         """
@@ -80,6 +93,7 @@ class ktTextureWidget(QtWidgets.QWidget):
         self.createWidgets()
         self.createLayouts()
         self.createConnections()
+        self.loadInformation()
 
 
     def _createSummaryRow(self,label):
@@ -202,15 +216,17 @@ class ktTextureWidget(QtWidgets.QWidget):
 
     def createConnections(self):
         """Connect signals to slots for automatic checkbox updating."""
-        self.baseColorRow.txt.textChanged.connect(lambda text: self.baseColorCB.setChecked(bool(text.strip())))
-        self.metalnessRow.txt.textChanged.connect(lambda text: self.metalnessCB.setChecked(bool(text.strip())))
-        self.specularRoughRow.txt.textChanged.connect(lambda text: self.specularRoughCB.setChecked(bool(text.strip())))
+        self.nameTXT.textChanged.connect(lambda text: self.updateInformation('name', text, None))
+        # Update Texture and setChecked when text changes
+        self.baseColorRow.txt.textChanged.connect(lambda text: self.updateInformation('baseColor', text, self.baseColorCB))
+        self.metalnessRow.txt.textChanged.connect(lambda text: self.updateInformation('metalness', text, self.metalnessCB))
+        self.specularRoughRow.txt.textChanged.connect(lambda text: self.updateInformation('specularRough', text, self.specularRoughCB))
 
         if self.normal:
-            self.normalRow.txt.textChanged.connect(lambda text: self.normalCB.setChecked(bool(text.strip())))
+            self.normalRow.txt.textChanged.connect(lambda text: self.updateInformation('normal', text, self.normalCB))
 
         if self.displacement:
-            self.displacementRow.txt.textChanged.connect(lambda text: self.displacementCB.setChecked(bool(text.strip())))
+            self.displacementRow.txt.textChanged.connect(lambda text: self.updateInformation('displacement', text, self.displacementCB))
 
         # Connect visibility button to toggle texture row visibility
         self.visibilityBTN.clicked.connect(self.toggleVisibility)
@@ -221,6 +237,25 @@ class ktTextureWidget(QtWidgets.QWidget):
         self.visibility = not self.visibility
         self.informationGB.setVisible(self.visibility)
         self.visibilityBTN.setIcon(self.iconExpanded if self.visibility else self.iconCollapsed)
+
+    def updateInformation(self, textureProperty, text, checkbox):
+        """Update the texture property and checkbox status."""
+        setattr(self.texture, textureProperty, text.strip())  # Update the corresponding texture property
+        if checkbox:
+            checkbox.setChecked(bool(text.strip()))  # Set the checkbox status
+
+
+    def loadInformation(self):
+        #texture = Texture() # type: Texture
+        self.nameTXT.setText(self.texture.name)
+        self.baseColorRow.txt.setText(self.texture.baseColor)
+        self.metalnessRow.txt.setText(self.texture.metalness)
+        self.specularRoughRow.txt.setText(self.texture.specularRough)
+        self.normalRow.txt.setText(self.texture.normal)
+        self.displacementRow.txt.setText(self.texture.displacement)
+        
+        
+
 #endregion
             
 #region Main
@@ -235,14 +270,18 @@ def assignTextureToMaterial(path, material):
             material.parn('rough_useTexture').set(True)
             material.parn('rough_texture').set(path + '/' + image)
 
+def assignTexture(self):
+    material = hou.selectedNodes()[0]
+    path = self.folderPathTXT.text()
+    assignTextureToMaterial(path, material)
+
 
 def getHoudiniMainWindow():
     return hou.qt.mainWindow()
-        
 
-class CreateWindow(QtWidgets.QDialog):
+class ktTextureImporter(QtWidgets.QDialog):
     def __init__(self, parent=getHoudiniMainWindow()):
-        super(CreateWindow, self).__init__(parent)
+        super(ktTextureImporter, self).__init__(parent)
         
         self.setWindowTitle('kt_TextureImporter')
         self.setMinimumWidth(600)
@@ -281,8 +320,6 @@ class CreateWindow(QtWidgets.QDialog):
         self.clearBTN.setFixedWidth(60)
         self.clearBTN.setFixedHeight(34)
         self.clearBTN.setStyleSheet("padding: 0px;")
-
-
             
     def createLayouts(self):
         """Function that creates all the layouts and add widgets"""
@@ -334,7 +371,6 @@ class CreateWindow(QtWidgets.QDialog):
         self.mainLayout.addLayout(self.execLYT)
         self.mainLayout.addWidget(self.texScroll)
 
-
     def createConnections(self):
         self.folderPathBTN.fileSelected.connect(self.onClick_folderPathBTN)
         self.matPathBTN.nodeSelected.connect(self.onClick_matPathBTN)
@@ -343,6 +379,7 @@ class CreateWindow(QtWidgets.QDialog):
 
     def onClick_clearBTN(self):
         self.clearLayout(self.texLYT)
+        self.folderPathTXT.setText("")
     
     def onClick_folderPathBTN(self, filePath):
         if filePath:
@@ -361,12 +398,71 @@ class CreateWindow(QtWidgets.QDialog):
         self.clearLayout(self.texLYT)
         self.texList = []
 
-        for i in range(3):
-            textureWD = ktTextureWidget(normal=True, displacement=True)
+        if self.textureTypeCMB.currentText() == "Arnold":
+            testTexture = ArnoldTexture(name="Prueba", baseColor="Test.png", metalness="Test2.png")
+            textureWD = ktTextureWidget(normal=True, displacement=True, texture=testTexture)
             self.texLYT.addWidget(textureWD)
             self.texList.append(textureWD)
 
+
         self.texLYT.addStretch()
+
+        folder_path = "D:/OP_Houdini_Pipeline/HOUdini_Resources/HOUdini_Resources/textures/wall block/01_PUBLISH"
+
+        user_pattern = "*_@objName_*_@texture_*_@texName_*.ext"
+
+        # Convert user pattern into a regex pattern
+        regex_pattern = re.escape(user_pattern)  # Escape special characters
+        regex_pattern = regex_pattern.replace(r"\@", "")  # Remove escape on placeholders
+
+        # Replace "*" (wildcard) with regex to match any value
+        regex_pattern = regex_pattern.replace(r"\*", r"([^_]+)")  
+
+        # Replace placeholders with named capturing groups
+        regex_pattern = regex_pattern.replace("@objName", r"(?P<objName>[^_]+)")
+        regex_pattern = regex_pattern.replace("@texture", r"(?P<texture>[^_]+)")
+        regex_pattern = regex_pattern.replace("@texName", r"(?P<texName>[^_]+)")
+
+        # Adjust for file extension dynamically
+        regex_pattern = regex_pattern.replace(r"\.ext", r"\.\w{2,4}")
+
+        # Debugging: Print generated regex pattern
+        #print(f"Generated Regex Pattern: {regex_pattern}")
+
+        textures = {}
+
+        # Loop through files in the directory
+        for filename in os.listdir(folder_path):
+            
+            if filename.endswith((".exr", ".tx")):  # Filter by file type
+                match = re.match(regex_pattern, filename)
+                if match:
+                    objName = match.group("objName")
+                    textureType = match.group("texture")
+                    texName = match.group("texName")
+
+                    finalName = objName + "_" + texName
+
+                    # Create texture object if not exists
+                    if finalName not in textures:
+                        textures[finalName] = Texture(name=finalName)
+
+                    # Assign the correct texture type (store only the filename)
+                    if textureType == "BaseColor":
+                        textures[finalName].baseColor = filename
+                    elif textureType == "Metalness":
+                        textures[finalName].metalness = filename
+                    elif textureType == "Roughness":
+                        textures[finalName].specularRough = filename
+                    elif textureType == "Normal":
+                        textures[finalName].normal = filename
+                    elif textureType == "Displacement" or textureType == "Height" :
+                        textures[finalName].displacement = filename
+
+        # Display texture information
+        for texture in textures.values():
+            texture.showInformation()
+
 
     def checkAllTextures(self):
         for textureWD in self.texList:
@@ -385,18 +481,15 @@ class CreateWindow(QtWidgets.QDialog):
                 layout.removeItem(item)
 
     
-    def assignTexture(self):
-        material = hou.selectedNodes()[0]
-        path = self.folderPathTXT.text()
-        assignTextureToMaterial(path, material)
+
 
 #endregion
 
 try:
-    CreateWindow.close()
-    CreateWindow.deleteLater()
+    ktTextureImporter.close()
+    ktTextureImporter.deleteLater()
 except:
     pass
 
-CreateWindow = CreateWindow()
-CreateWindow.show()
+ktTextureImporter = ktTextureImporter()
+ktTextureImporter.show()
