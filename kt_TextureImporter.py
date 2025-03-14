@@ -7,6 +7,7 @@ from PySide2 import QtGui
 
 #region Texture
 class Texture(object):
+
     """docstring for ClassName."""
     def __init__(self, name, baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None):
         self.name = name
@@ -15,9 +16,23 @@ class Texture(object):
         self.specularRough = specularRough
         self.normal = normal
         self.displacement = displacement
+
+        self.textureMapping = {
+        "baseColor": ["basecolor","base"],
+        "metalness": ["metalness","metallic"],
+        "specularRough": ["roughness","specular"],
+        "normal": ["normal"],
+        "displacement": ["height","displacement"]
+        }
     
     def createTexture(self): #We need it here so we can create textures depending on the type (it doesn't depend on the widget or window)
         pass
+
+    def getTypeMap(self, word):
+        for parent, children in self.textureMapping.items():
+            if word in children:
+                return parent
+        return None
 
     def showInformation(self):
         print("-----------------------------------------")
@@ -75,14 +90,14 @@ class ktTextureRowWidget(QtWidgets.QWidget):
 
     
 class ktTextureWidget(QtWidgets.QWidget):
-    def __init__(self, normal=False, displacement=False, texture=None):
+    def __init__(self, texture=None):
         super().__init__()
         
         self.baseColor = True
         self.metalness = True
         self.specularRough = True
-        self.normal = normal
-        self.displacement = displacement
+        self.normal = True
+        self.displacement = True
         self.visibility = False
         self.texture = texture
 
@@ -120,8 +135,8 @@ class ktTextureWidget(QtWidgets.QWidget):
         self.baseColorSumLayout, self.baseColorCB = self._createSummaryRow("BC")
         self.metalnessSumLayout, self.metalnessCB = self._createSummaryRow("M")
         self.specularRoughSumLayout, self.specularRoughCB = self._createSummaryRow("SR")
-        self.normalSumLayout, self.normalCB = self._createSummaryRow("N") if self.normal else (None, None)
-        self.displacementSumLayout, self.displacementCB = self._createSummaryRow("D") if self.displacement else (None, None)
+        self.normalSumLayout, self.normalCB = self._createSummaryRow("N")
+        self.displacementSumLayout, self.displacementCB = self._createSummaryRow("D")
 
         self.visibilityBTN = QtWidgets.QPushButton() 
         #https://houdini-icons.dev/
@@ -146,8 +161,8 @@ class ktTextureWidget(QtWidgets.QWidget):
         self.baseColorRow = ktTextureRowWidget("Base Color")
         self.metalnessRow = ktTextureRowWidget("Metalness")
         self.specularRoughRow = ktTextureRowWidget("Specular Rough")
-        self.normalRow = ktTextureRowWidget("Normal") if self.normal else None
-        self.displacementRow = ktTextureRowWidget("Displacement") if self.displacement else None
+        self.normalRow = ktTextureRowWidget("Normal")
+        self.displacementRow = ktTextureRowWidget("Displacement")
 
     def createLayouts(self):
         self.mainLayout = QtWidgets.QVBoxLayout(self)
@@ -221,12 +236,8 @@ class ktTextureWidget(QtWidgets.QWidget):
         self.baseColorRow.txt.textChanged.connect(lambda text: self.updateInformation('baseColor', text, self.baseColorCB))
         self.metalnessRow.txt.textChanged.connect(lambda text: self.updateInformation('metalness', text, self.metalnessCB))
         self.specularRoughRow.txt.textChanged.connect(lambda text: self.updateInformation('specularRough', text, self.specularRoughCB))
-
-        if self.normal:
-            self.normalRow.txt.textChanged.connect(lambda text: self.updateInformation('normal', text, self.normalCB))
-
-        if self.displacement:
-            self.displacementRow.txt.textChanged.connect(lambda text: self.updateInformation('displacement', text, self.displacementCB))
+        self.normalRow.txt.textChanged.connect(lambda text: self.updateInformation('normal', text, self.normalCB))
+        self.displacementRow.txt.textChanged.connect(lambda text: self.updateInformation('displacement', text, self.displacementCB))
 
         # Connect visibility button to toggle texture row visibility
         self.visibilityBTN.clicked.connect(self.toggleVisibility)
@@ -305,6 +316,8 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.matPathTXT.setReadOnly(True)
         self.matPathBTN = hou.qt.NodeChooserButton()
 
+        self.patternTXT = QtWidgets.QLineEdit()
+        self.patternTXT.setText("@objName_@texName_*_@texture_*.@id.ext")
 
         self.folderPathTXT = QtWidgets.QLineEdit()
         self.folderPathTXT.setReadOnly(True)
@@ -332,6 +345,11 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.textureTypeLYT.addWidget(QtWidgets.QLabel(' Material Library: '))
         self.textureTypeLYT.addWidget(self.matPathTXT)
         self.textureTypeLYT.addWidget(self.matPathBTN)
+
+        """ Pattern """
+        self.patternLYT = QtWidgets.QHBoxLayout()
+        self.patternLYT.addWidget(QtWidgets.QLabel('Pattern: '))
+        self.patternLYT.addWidget(self.patternTXT)
         
 
         """ Folder """
@@ -366,6 +384,7 @@ class ktTextureImporter(QtWidgets.QDialog):
 
         """ MAIN """
         self.mainLayout.addLayout(self.textureTypeLYT)
+        self.mainLayout.addLayout(self.patternLYT)
         self.mainLayout.addLayout(self.folderPathLYT)
         self.mainLayout.addSpacing(25)
         self.mainLayout.addLayout(self.execLYT)
@@ -398,47 +417,37 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.clearLayout(self.texLYT)
         self.texList = []
 
-        if self.textureTypeCMB.currentText() == "Arnold":
-            testTexture = ArnoldTexture(name="Prueba", baseColor="Test.png", metalness="Test2.png")
-            textureWD = ktTextureWidget(normal=True, displacement=True, texture=testTexture)
+        folder_path = "D:/OP_Houdini_Pipeline/HOUdini_Resources/HOUdini_Resources/textures/columns/columns"
+        #folder_path = "D:/OP_Houdini_Pipeline/bigPlant"
+        #user_pattern = "*_*_*_@objName_*_*_@texName_@texture.ext"
+
+        filePattern = self.patternTXT.text()
+        regexPattern = self.getRegexPattern(filePattern)
+        textureType = self.textureTypeCMB.currentText() + "Texture"
+        textureClass = globals().get(textureType)
+
+        textures = self.readTexturesFromFolder(folder_path, regexPattern, textureClass)
+        
+        # Display texture information
+        for texture in textures.values():
+            #texture = Texture() # type: Texture
+            texture.showInformation()
+            testTexture = textureClass(name=texture.name, baseColor=texture.baseColor, metalness=texture.metalness, 
+                                    specularRough=texture.specularRough, normal=texture.normal, displacement=texture.displacement)
+            textureWD = ktTextureWidget(texture=testTexture)
             self.texLYT.addWidget(textureWD)
             self.texList.append(textureWD)
 
-
         self.texLYT.addStretch()
 
-        folder_path = "D:/OP_Houdini_Pipeline/HOUdini_Resources/HOUdini_Resources/textures/wall block/01_PUBLISH"
-        #folder_path = "D:/OP_Houdini_Pipeline/bigPlant"
-
-        user_pattern = "*_@objName_*_@texture_*_@texName_@id.ext"
-        #user_pattern = "*_*_*_@objName_*_*_@texName_@texture.ext"
-
-        # Convert user pattern into a regex pattern
-        regex_pattern = re.escape(user_pattern)  # Escape special characters
-        regex_pattern = regex_pattern.replace(r"\@", "")  # Remove escape on placeholders
-
-        # Replace "*" (wildcard) with regex to match any value
-        regex_pattern = regex_pattern.replace(r"\*", r"([^_]+)")  
-
-        # Replace placeholders with named capturing groups
-        regex_pattern = regex_pattern.replace("@objName", r"(?P<objName>[^_]+)")
-        regex_pattern = regex_pattern.replace("@texture", r"(?P<texture>[^_]+)")
-        regex_pattern = regex_pattern.replace("@texName", r"(?P<texName>[^_]+)")
-        regex_pattern = regex_pattern.replace("@id", r"(?P<id>\d+)?")  # Capture @id as a number
-
-        # Adjust for file extension dynamically
-        regex_pattern = regex_pattern.replace(r"\.ext", r"\.\w{2,4}")
-
-        # Debugging: Print generated regex pattern
-        print(f"Generated Regex Pattern: {regex_pattern}")
-
+    def readTexturesFromFolder(self, folderPath, regexPattern, textureClass=Texture):
         textures = {}
 
         # Loop through files in the directory
-        for filename in os.listdir(folder_path):
+        for filename in os.listdir(folderPath):
             
             if filename.endswith((".exr", ".png")):  # Filter by file type
-                match = re.match(regex_pattern, filename)
+                match = re.match(regexPattern, filename)
                 if match:
                     objName = match.group("objName")
                     texName = match.group("texName")
@@ -447,31 +456,23 @@ class ktTextureImporter(QtWidgets.QDialog):
 
                     finalName = objName + "_" + texName
 
-
                     # Create texture object if not exists
                     if finalName not in textures:
-                        textures[finalName] = Texture(name=finalName)
-                    
+                        textures[finalName] = textureClass(name=finalName) 
+                        print(f"Created {textures[finalName].__class__.__name__} object: {finalName}")  # Debugging output
+                
                     # Replace @id with $F in the filename if @id is present
-                    if textureId:
-                        filename = filename.replace(textureId, "$F")
+                    #if textureId:
+                        #filename = filename.replace(textureId, "$F")
 
-                    # Assign the correct texture type (store only the filename)
-                    if textureType == "BaseColor":
-                        textures[finalName].baseColor = filename
-                    elif textureType == "Metalness" or textureType == "Metallic":
-                        textures[finalName].metalness = filename
-                    elif textureType == "Roughness":
-                        textures[finalName].specularRough = filename
-                    elif textureType == "Normal":
-                        textures[finalName].normal = filename
-                    elif textureType == "Displacement" or textureType == "Height" :
-                        textures[finalName].displacement = filename
+                    textureType = textureType.lower()
+                    textureParent = textures[finalName].getTypeMap(textureType)
 
-        # Display texture information
-        for texture in textures.values():
-            texture.showInformation()
-
+                    # Check if the textureType exists in the mapping dictionary
+                    if textureParent:
+                        setattr(textures[finalName], textureParent, filename)
+        
+        return textures
 
     def checkAllTextures(self):
         for textureWD in self.texList:
@@ -489,7 +490,24 @@ class ktTextureImporter(QtWidgets.QDialog):
             else: 
                 layout.removeItem(item)
 
-    
+    def getRegexPattern(self, userPattern):
+        # Convert user pattern into a regex pattern
+        regexPattern = re.escape(userPattern)  # Escape special characters
+        regexPattern = regexPattern.replace(r"\@", "")  # Remove escape on placeholders
+        regexPattern = regexPattern.replace(r"\*", r"([^_]+)")  # Replace "*" (wildcard) with regex to match any value
+
+        # Replace placeholders with named capturing groups
+        regexPattern = regexPattern.replace("@objName", r"(?P<objName>[^_]+)")
+        regexPattern = regexPattern.replace("@texture", r"(?P<texture>[^_]+)")
+        regexPattern = regexPattern.replace("@texName", r"(?P<texName>[^_]+)")
+        regexPattern = regexPattern.replace("@id", r"(?P<id>\d+)?")  # Capture @id as a number
+
+        # Adjust for file extension dynamically
+        regexPattern = regexPattern.replace(r"\.ext", r"\.\w{2,4}")
+
+        # Debugging: Print generated regex pattern
+        print(f"Generated Regex Pattern: {regexPattern}")
+        return regexPattern
 
 
 #endregion
