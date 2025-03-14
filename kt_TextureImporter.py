@@ -408,8 +408,10 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.texLYT.addStretch()
 
         folder_path = "D:/OP_Houdini_Pipeline/HOUdini_Resources/HOUdini_Resources/textures/wall block/01_PUBLISH"
+        #folder_path = "D:/OP_Houdini_Pipeline/bigPlant"
 
-        user_pattern = "*_@objName_*_@texture_*_@texName_*.ext"
+        user_pattern = "*_@objName_*_@texture_*_@texName_@id.ext"
+        #user_pattern = "*_*_*_@objName_*_*_@texName_@texture.ext"
 
         # Convert user pattern into a regex pattern
         regex_pattern = re.escape(user_pattern)  # Escape special characters
@@ -422,35 +424,42 @@ class ktTextureImporter(QtWidgets.QDialog):
         regex_pattern = regex_pattern.replace("@objName", r"(?P<objName>[^_]+)")
         regex_pattern = regex_pattern.replace("@texture", r"(?P<texture>[^_]+)")
         regex_pattern = regex_pattern.replace("@texName", r"(?P<texName>[^_]+)")
+        regex_pattern = regex_pattern.replace("@id", r"(?P<id>\d+)?")  # Capture @id as a number
 
         # Adjust for file extension dynamically
         regex_pattern = regex_pattern.replace(r"\.ext", r"\.\w{2,4}")
 
         # Debugging: Print generated regex pattern
-        #print(f"Generated Regex Pattern: {regex_pattern}")
+        print(f"Generated Regex Pattern: {regex_pattern}")
 
         textures = {}
 
         # Loop through files in the directory
         for filename in os.listdir(folder_path):
             
-            if filename.endswith((".exr", ".tx")):  # Filter by file type
+            if filename.endswith((".exr", ".png")):  # Filter by file type
                 match = re.match(regex_pattern, filename)
                 if match:
                     objName = match.group("objName")
-                    textureType = match.group("texture")
                     texName = match.group("texName")
+                    textureType = match.group("texture")
+                    textureId = match.group("id") if "id" in match.groupdict() else None
 
                     finalName = objName + "_" + texName
+
 
                     # Create texture object if not exists
                     if finalName not in textures:
                         textures[finalName] = Texture(name=finalName)
+                    
+                    # Replace @id with $F in the filename if @id is present
+                    if textureId:
+                        filename = filename.replace(textureId, "$F")
 
                     # Assign the correct texture type (store only the filename)
                     if textureType == "BaseColor":
                         textures[finalName].baseColor = filename
-                    elif textureType == "Metalness":
+                    elif textureType == "Metalness" or textureType == "Metallic":
                         textures[finalName].metalness = filename
                     elif textureType == "Roughness":
                         textures[finalName].specularRough = filename
