@@ -18,14 +18,6 @@ class Texture(object):
         self.displacement = displacement
 
         self.textureMapping = {
-        "baseColor": ["basecolor","base"],
-        "metalness": ["metalness","metallic"],
-        "specularRough": ["roughness","specular"],
-        "normal": ["normal"],
-        "displacement": ["height","displacement"]
-        }
-
-        self.textureMapping = {
             "baseColor": {"label": "Base Color", "abbreviation": "BC", "mapping": ["basecolor", "base"]},
             "metalness": {"label": "Metalness", "abbreviation": "M", "mapping": ["metalness", "metallic"]},
             "specularRough": {"label": "Specular Rough", "abbreviation": "SR", "mapping": ["roughness", "specular"]},
@@ -415,9 +407,10 @@ class ktTextureImporter(QtWidgets.QDialog):
         for texture in textures.values():
             #texture = Texture() # type: Texture
             texture.showInformation()
-            testTexture = textureClass(name=texture.name, baseColor=texture.baseColor, metalness=texture.metalness, 
-                                    specularRough=texture.specularRough, normal=texture.normal, displacement=texture.displacement)
-            textureWD = ktTextureWidget(texture=testTexture)
+            attributes = {key: value for key, value in vars(texture).items() if key != "textureMapping"}
+            newTexture = textureClass(**attributes)
+
+            textureWD = ktTextureWidget(texture=newTexture)
             self.texLYT.addWidget(textureWD)
             self.texList.append(textureWD)
 
