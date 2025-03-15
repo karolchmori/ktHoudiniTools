@@ -45,13 +45,67 @@ class ArnoldTexture(Texture):
     """docstring for ClassName."""
     def __init__(self, name="ArnoldTexture", baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None):
         super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement)
+    
+    def createTexture(self, parentNode, path):
+        # Create the Arnold Material Builder node
+        materialBuilderNode = parentNode.createNode("arnold_materialbuilder", self.name)
+        outMaterialNode = materialBuilderNode.node("OUT_material")
+        standardSurfaceNode = materialBuilderNode.createNode("arnold::standard_surface", f"{self.name}_SDR")
+        
+        outMaterialNode.setNamedInput("surface", standardSurfaceNode, "shader")
+        
+        def getFullPath(textureName, path):
+            return os.path.join(path, textureName) if textureName else None
+        
+        # Add the various texture nodes and connect them to the material
+        if self.baseColor:
+            baseColorNode = materialBuilderNode.createNode("arnold::image", f"{self.name}_BC")
+            baseColorNode.parm("filename").set(getFullPath(self.baseColor, path))
+
+            colorCorrectNode = materialBuilderNode.createNode("arnold::color_correct", f"{self.name}_CC") 
+            colorCorrectNode.setNamedInput("input", baseColorNode, "rgba")
+            standardSurfaceNode.setNamedInput("base_color", colorCorrectNode, "rgba")
+ 
+        if self.metalness:
+            metalnessNode = materialBuilderNode.createNode("arnold::image", f"{self.name}_M")
+            metalnessNode.parm("filename").set(getFullPath(self.metalness, path))
+            standardSurfaceNode.setNamedInput("metalness", metalnessNode, "r")
+
+        if self.specularRough:
+            specularRoughNode = materialBuilderNode.createNode("arnold::image", f"{self.name}_SR")
+            specularRoughNode.parm("filename").set(getFullPath(self.specularRough, path))
+            standardSurfaceNode.setNamedInput("specular_roughness", specularRoughNode, "r")
+
+        if self.normal:
+            normalNode = materialBuilderNode.createNode("arnold::image", f"{self.name}_N")
+            normalNode.parm("filename").set(getFullPath(self.normal, path))
+
+            normalMapNode = materialBuilderNode.createNode("arnold::normal_map", f"{self.name}_NM") 
+            normalMapNode.setNamedInput("input", normalNode, "rgba")
+            standardSurfaceNode.setNamedInput("normal", normalMapNode, "vector")
+
+        if self.displacement:
+            displacementNode = materialBuilderNode.createNode("arnold::image", f"{self.name}_D")
+            displacementNode.parm("filename").set(getFullPath(self.displacement, path))
+
+            rangeNode = materialBuilderNode.createNode("arnold::range", f"{self.name}_RNG") 
+            rangeNode.setNamedInput("input", displacementNode, "r")
+            outMaterialNode.setNamedInput("displacement", rangeNode, "r")
+
+            
+
+        
+        # Optionally, organize the layout of the nodes
+        materialBuilderNode.layoutChildren()
+
+        return materialBuilderNode
 
 class KarmaTexture(Texture):
     """docstring for ClassName."""
-    def __init__(self, name="KarmaTexture", baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None, aov=None):
+    def __init__(self, name="KarmaTexture", baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None, ambientOcclusion=None):
         super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement)
-        self.aov = aov
-        self.textureMapping["aov"] =  {"label": "AOV", "abbreviation": "AOV", "mapping": ["aov"]}
+        self.ambientOcclusion = ambientOcclusion
+        self.textureMapping["ambientOcclusion"] =  {"label": "Ambient Occlusion", "abbreviation": "AO", "mapping": ["ao","ambientocclusion"]}
 
 #endregion
 
@@ -371,7 +425,8 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.matPathBTN.nodeSelected.connect(self.onClick_matPathBTN)
         self.clearBTN.clicked.connect(self.onClick_clearBTN)
         self.selectAllCB.clicked.connect(self.onChange_selectAllCB)
-
+        self.createBTN.clicked.connect(self.onClick_createBTN)
+    
     def onClick_clearBTN(self):
         self.clearLayout(self.texLYT)
         self.folderPathTXT.setText("")
@@ -385,6 +440,16 @@ class ktTextureImporter(QtWidgets.QDialog):
         if node:
             self.matPathTXT.setText(str(node.path()))
     
+    def onClick_createBTN(self):
+        parentNode = hou.node("/stage/materiallibrary1")
+        typeNode = parentNode.type().name()
+        folderPath = self.folderPathTXT.text()
+        
+        if typeNode == "materiallibrary":
+            for tex in self.texList:
+                #tex = ktTextureWidget() # type: ktTextureWidget
+                tex.texture.createTexture(parentNode,folderPath)
+    
     def onChange_selectAllCB(self):
         if self.selectAllCB.isChecked:
             self.checkAllTextures()
@@ -393,15 +458,16 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.clearLayout(self.texLYT)
         self.texList = []
 
-        folder_path = "D:/OP_Houdini_Pipeline/HOUdini_Resources/HOUdini_Resources/textures/columns/columns"
+        
         #folder_path = "D:/OP_Houdini_Pipeline/bigPlant"
 
+        folderPath = self.folderPathTXT.text()
         filePattern = self.patternCMB.currentText()
         regexPattern = self.getRegexPattern(filePattern)
         textureType = self.textureTypeCMB.currentText() + "Texture"
         textureClass = globals().get(textureType)
 
-        textures = self.readTexturesFromFolder(folder_path, regexPattern, textureClass)
+        textures = self.readTexturesFromFolder(folderPath, regexPattern, textureClass)
         
         # Display texture information
         for texture in textures.values():
