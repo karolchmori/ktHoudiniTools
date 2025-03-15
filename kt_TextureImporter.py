@@ -294,8 +294,8 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.matPathBTN = hou.qt.NodeChooserButton()
 
         self.patternCMB = QtWidgets.QComboBox()
-        self.patternCMB.addItem('@objName_@texName_*_@texture_*.@id.ext')
-        self.patternCMB.addItem('*_*_*_@objName_*_*_@texName_@texture.ext')
+        self.patternCMB.addItem('@objName_@texName_*_@texType_*.@id.ext')
+        self.patternCMB.addItem('*_*_*_@objName_*_*_@texName_@texType.ext')
         self.patternCMB.setEditable(True)
         self.patternCMB.setStyleSheet("""
             QComboBox { padding-right: 20px; }
@@ -434,7 +434,7 @@ class ktTextureImporter(QtWidgets.QDialog):
                 if match:
                     objName = match.group("objName")
                     texName = match.group("texName")
-                    textureType = match.group("texture")
+                    textureType = match.group("texType")
                     textureId = match.group("id") if "id" in match.groupdict() else None
 
                     finalName = objName + "_" + texName
@@ -481,7 +481,7 @@ class ktTextureImporter(QtWidgets.QDialog):
 
         # Replace placeholders with named capturing groups
         regexPattern = regexPattern.replace("@objName", r"(?P<objName>[^_]+)")
-        regexPattern = regexPattern.replace("@texture", r"(?P<texture>[^_]+)")
+        regexPattern = regexPattern.replace("@texType", r"(?P<texType>[^_]+)")
         regexPattern = regexPattern.replace("@texName", r"(?P<texName>[^_]+)")
         regexPattern = regexPattern.replace("@id", r"(?P<id>\d+)?")  # Capture @id as a number
 
