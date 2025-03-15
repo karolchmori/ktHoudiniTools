@@ -92,10 +92,7 @@ class ArnoldTexture(Texture):
             rangeNode.setNamedInput("input", displacementNode, "r")
             outMaterialNode.setNamedInput("displacement", rangeNode, "r")
 
-            
-
-        
-        # Optionally, organize the layout of the nodes
+        # Organize layout
         materialBuilderNode.layoutChildren()
 
         return materialBuilderNode
@@ -293,23 +290,6 @@ class ktTextureWidget(QtWidgets.QWidget):
 #endregion
             
 #region Main
-
-def assignTextureToMaterial(path, material):
-    files = os.listdir(path)
-    for image in files:
-        if 'diffuse.jpg' in image:
-            material.parn('basecolor_useTexture').set(True)
-            material.parn('basecolor_texture').set(path + '/' + image)
-        elif 'roughness.jpg' in image:
-            material.parn('rough_useTexture').set(True)
-            material.parn('rough_texture').set(path + '/' + image)
-
-def assignTexture(self):
-    material = hou.selectedNodes()[0]
-    path = self.folderPathTXT.text()
-    assignTextureToMaterial(path, material)
-
-
 def getHoudiniMainWindow():
     return hou.qt.mainWindow()
 
@@ -322,10 +302,16 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.setMinimumHeight(700)
         self.setWindowFlags(self.windowFlags() ^ QtCore.Qt.WindowContextHelpButtonHint)
         
+        
         self.createWidgets()
         self.createLayouts()
         self.createConnections()
-            
+
+    def keyPressEvent(self, event):
+        if event.key() in (QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter):
+            event.accept()  # Prevents default behavior
+        else:
+            super(ktTextureImporter, self).keyPressEvent(event)    
             
     def createWidgets(self):
         """Function that creates all the widgets"""
@@ -343,6 +329,7 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.patternCMB.addItem('@objName_@texName_*_@texType_*.@id.ext')
         self.patternCMB.addItem('*_*_*_@objName_*_*_@texName_@texType.ext')
         self.patternCMB.setEditable(True)
+        self.patternCMB.lineEdit().installEventFilter(self)
         self.patternCMB.setStyleSheet("""
             QComboBox { padding-right: 20px; }
         """)
@@ -357,6 +344,7 @@ class ktTextureImporter(QtWidgets.QDialog):
 
         self.selectAllCB = QtWidgets.QCheckBox()
         self.createBTN = QtWidgets.QPushButton("Create")
+        self.createBTN.setEnabled(False)
         self.clearBTN = QtWidgets.QPushButton("Clear")
         self.clearBTN.setFixedWidth(60)
         self.clearBTN.setFixedHeight(34)
@@ -426,10 +414,21 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.clearBTN.clicked.connect(self.onClick_clearBTN)
         self.selectAllCB.clicked.connect(self.onChange_selectAllCB)
         self.createBTN.clicked.connect(self.onClick_createBTN)
+        self.textureTypeCMB.currentIndexChanged.connect(self.onChange_textureTypeCMB)
+        self.patternCMB.lineEdit().textChanged.connect(self.onChange_Finished_patternCMB)
     
+    def showMessageError(self, message):
+        msg = QtWidgets.QMessageBox()
+        msg.setIcon(QtWidgets.QMessageBox.Critical)
+        msg.setText("Error: " + message)
+        msg.setWindowTitle("Houdini Error")
+        msg.exec_()
+
     def onClick_clearBTN(self):
         self.clearLayout(self.texLYT)
         self.folderPathTXT.setText("")
+        self.matPathTXT.setText("")
+        self.createBTN.setEnabled(False)
     
     def onClick_folderPathBTN(self, filePath):
         if filePath:
@@ -438,28 +437,40 @@ class ktTextureImporter(QtWidgets.QDialog):
     
     def onClick_matPathBTN(self, node):
         if node:
-            self.matPathTXT.setText(str(node.path()))
+            typeNode = node.type().name()
+            if typeNode == "materiallibrary":
+                self.matPathTXT.setText(str(node.path()))
+            else:
+              self.showMessageError("The node selected is not a Material Library, please check")
     
     def onClick_createBTN(self):
-        parentNode = hou.node("/stage/materiallibrary1")
-        typeNode = parentNode.type().name()
-        folderPath = self.folderPathTXT.text()
+        parentNode = hou.node(self.matPathTXT.text())
         
-        if typeNode == "materiallibrary":
+        if parentNode:
+            folderPath = self.folderPathTXT.text()
             for tex in self.texList:
                 #tex = ktTextureWidget() # type: ktTextureWidget
-                tex.texture.createTexture(parentNode,folderPath)
+                if tex.selectedCB.isChecked():
+                    tex.texture.createTexture(parentNode,folderPath)
+        else:
+            self.showMessageError("A material Library needs to be selected")
     
     def onChange_selectAllCB(self):
         if self.selectAllCB.isChecked:
             self.checkAllTextures()
     
+    def onChange_textureTypeCMB(self):
+            if self.folderPathTXT.text():
+                self.loadTextures()
+    
+    def onChange_Finished_patternCMB(self):
+        if self.folderPathTXT.text():
+            self.loadTextures()
+            
+
     def loadTextures(self):
         self.clearLayout(self.texLYT)
         self.texList = []
-
-        
-        #folder_path = "D:/OP_Houdini_Pipeline/bigPlant"
 
         folderPath = self.folderPathTXT.text()
         filePattern = self.patternCMB.currentText()
@@ -468,19 +479,28 @@ class ktTextureImporter(QtWidgets.QDialog):
         textureClass = globals().get(textureType)
 
         textures = self.readTexturesFromFolder(folderPath, regexPattern, textureClass)
-        
-        # Display texture information
-        for texture in textures.values():
-            #texture = Texture() # type: Texture
-            texture.showInformation()
-            attributes = {key: value for key, value in vars(texture).items() if key != "textureMapping"}
-            newTexture = textureClass(**attributes)
 
-            textureWD = ktTextureWidget(texture=newTexture)
-            self.texLYT.addWidget(textureWD)
-            self.texList.append(textureWD)
+        if textures:
+            self.createBTN.setEnabled(True)
+            # Display texture information
+            for texture in textures.values():
+                #texture = Texture() # type: Texture
+                texture.showInformation()
+                attributes = {key: value for key, value in vars(texture).items() if key != "textureMapping"}
+                newTexture = textureClass(**attributes)
 
-        self.texLYT.addStretch()
+                textureWD = ktTextureWidget(texture=newTexture)
+                self.texLYT.addWidget(textureWD)
+                self.texList.append(textureWD)
+
+            self.texLYT.addStretch()
+        else:
+            self.createBTN.setEnabled(False)
+            # Show a message on the screen saying there's no results
+            lbl = QtWidgets.QLabel("No results. Verify Pattern")
+            lbl.setAlignment(QtCore.Qt.AlignCenter)
+            lbl.setStyleSheet("background-color: #995D58; color: white; padding: 10px; font-weight: bold;")
+            self.texLYT.addWidget(lbl)
 
     def readTexturesFromFolder(self, folderPath, regexPattern, textureClass=Texture):
         textures = {}
@@ -522,7 +542,6 @@ class ktTextureImporter(QtWidgets.QDialog):
 
     def clearLayout(self, layout):
         self.selectAllCB.setChecked(False)
-
         for i in reversed(range(layout.count())):
             item = layout.itemAt(i)
             if item.widget(): 
@@ -531,6 +550,7 @@ class ktTextureImporter(QtWidgets.QDialog):
                 widgetToRemove.setParent(None)
             else: 
                 layout.removeItem(item)
+        
 
     def getRegexPattern(self, userPattern):
         # Convert user pattern into a regex pattern
@@ -548,7 +568,7 @@ class ktTextureImporter(QtWidgets.QDialog):
         regexPattern = regexPattern.replace(r"\.ext", r"\.\w{2,4}")
 
         # Debugging: Print generated regex pattern
-        print(f"Generated Regex Pattern: {regexPattern}")
+        #print(f"Generated Regex Pattern: {regexPattern}")
         return regexPattern
 
 
