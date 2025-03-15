@@ -530,36 +530,40 @@ class ktTextureImporter(QtWidgets.QDialog):
         #print(f"AFTER readTexturesFromFolder = {folderPath}")
 
         # Loop through files in the directory
-        for filename in os.listdir(folderPath):
-            
-            if filename.endswith((".exr", ".png")):  # Filter by file type
-                match = re.match(regexPattern, filename)
-                if match:
-                    objName = match.group("objName") if "objName" in match.groupdict() else None
-                    texName = match.group("texName")
-                    textureType = match.group("texType")
-                    textureId = match.group("id") if "id" in match.groupdict() else None
+        for root, dirs, files in os.walk(folderPath):
+            for filename in files:
+                if filename.endswith((".exr", ".png")):  # Filter by file type
+                    match = re.match(regexPattern, filename)
+                    if match:
+                        objName = match.group("objName") if "objName" in match.groupdict() else None
+                        texName = match.group("texName")
+                        textureType = match.group("texType")
+                        textureId = match.group("id") if "id" in match.groupdict() else None
 
-                    if objName:
-                        finalName = objName + "_" + texName
-                    else:
-                        finalName = texName
+                        finalName = f"{objName}_{texName}" if objName else texName
 
-                    # Create texture object if not exists
-                    if finalName not in textures:
-                        textures[finalName] = textureClass(name=finalName) 
-                        print(f"Created {textures[finalName].__class__.__name__} object: {finalName}")  # Debugging output
-                
-                    # Replace @id with $F in the filename if @id is present
-                    if textureId:
-                        filename = filename.replace(textureId, "<UDIM>")
+                        # Create texture object if not exists
+                        if finalName not in textures:
+                            textures[finalName] = textureClass(name=finalName) 
+                            #print(f"Created {textures[finalName].__class__.__name__} object: {finalName}")  # Debugging output
+                    
+                        # Replace @id with $F in the filename if @id is present
+                        if textureId:
+                            filename = filename.replace(textureId, "<UDIM>")
 
-                    textureType = textureType.lower()
-                    textureParent = textures[finalName].getTypeFromAttr("mapping", textureType)
+                        textureType = textureType.lower()
+                        textureParent = textures[finalName].getTypeFromAttr("mapping", textureType)
 
-                    # Check if the textureType exists in the mapping dictionary
-                    if textureParent:
-                        setattr(textures[finalName], textureParent, filename)
+                        # Check if the textureType exists in the mapping dictionary
+                        if textureParent:
+                            relativePath = os.path.relpath(root, folderPath)
+                            relativePath = relativePath.replace("\\", "/")
+
+                            if relativePath != ".":
+                                finalPath = relativePath + "/" + filename
+                            else:
+                                finalPath = filename                            
+                            setattr(textures[finalName], textureParent, finalPath)
         
         return textures
 
