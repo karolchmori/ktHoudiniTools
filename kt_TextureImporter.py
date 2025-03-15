@@ -525,9 +525,9 @@ class ktTextureImporter(QtWidgets.QDialog):
 
     def readTexturesFromFolder(self, folderPath, regexPattern, textureClass=Texture):
         textures = {}
-        print(f"BEFORE readTexturesFromFolder = {folderPath}")
+        #print(f"BEFORE readTexturesFromFolder = {folderPath}")
         folderPath = self.verifyFolderPath(folderPath)
-        print(f"AFTER readTexturesFromFolder = {folderPath}")
+        #print(f"AFTER readTexturesFromFolder = {folderPath}")
 
         # Loop through files in the directory
         for filename in os.listdir(folderPath):
@@ -551,8 +551,8 @@ class ktTextureImporter(QtWidgets.QDialog):
                         print(f"Created {textures[finalName].__class__.__name__} object: {finalName}")  # Debugging output
                 
                     # Replace @id with $F in the filename if @id is present
-                    #if textureId:
-                        #filename = filename.replace(textureId, "$F")
+                    if textureId:
+                        filename = filename.replace(textureId, "<UDIM>")
 
                     textureType = textureType.lower()
                     textureParent = textures[finalName].getTypeFromAttr("mapping", textureType)
