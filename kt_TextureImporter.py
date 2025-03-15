@@ -24,24 +24,29 @@ class Texture(object):
         "normal": ["normal"],
         "displacement": ["height","displacement"]
         }
+
+        self.textureMapping = {
+            "baseColor": {"label": "Base Color", "abbreviation": "BC", "mapping": ["basecolor", "base"]},
+            "metalness": {"label": "Metalness", "abbreviation": "M", "mapping": ["metalness", "metallic"]},
+            "specularRough": {"label": "Specular Rough", "abbreviation": "SR", "mapping": ["roughness", "specular"]},
+            "normal": {"label": "Normal", "abbreviation": "N", "mapping": ["normal"]},
+            "displacement": {"label": "Displacement", "abbreviation": "D", "mapping": ["height", "displacement"]},
+        }
     
     def createTexture(self): #We need it here so we can create textures depending on the type (it doesn't depend on the widget or window)
         pass
 
     def getTypeMap(self, word):
         for parent, children in self.textureMapping.items():
-            if word in children:
+            if word in children["mapping"]:
                 return parent
         return None
 
     def showInformation(self):
         print("-----------------------------------------")
-        print(f"name: {self.name}")
-        print(f"baseColor: {self.baseColor}")
-        print(f"metalness: {self.metalness}")
-        print(f"specularRough: {self.specularRough}")
-        print(f"normal: {self.normal}")
-        print(f"displacement: {self.displacement}")
+        for attribute, value in vars(self).items():  # Iterate over the instance's attributes
+            if attribute != "textureMapping":  # Exclude textureMapping from being printed
+                print(f"{attribute}: {value}")
         print("-----------------------------------------")
 
 class ArnoldTexture(Texture):
@@ -51,8 +56,11 @@ class ArnoldTexture(Texture):
 
 class KarmaTexture(Texture):
     """docstring for ClassName."""
-    def __init__(self, name="KarmaTexture", baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None):
+    def __init__(self, name="KarmaTexture", baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None, aov=None):
         super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement)
+        self.aov = aov
+        self.textureMapping["aov"] =  {"label": "AOV", "abbreviation": "AOV", "mapping": ["aov"]}
+
 #endregion
 
 #region Widget
@@ -93,14 +101,8 @@ class ktTextureWidget(QtWidgets.QWidget):
     def __init__(self, texture=None):
         super().__init__()
         
-        self.baseColor = True
-        self.metalness = True
-        self.specularRough = True
-        self.normal = True
-        self.displacement = True
         self.visibility = False
         self.texture = texture
-
         
         """
         UI Creation
@@ -130,13 +132,18 @@ class ktTextureWidget(QtWidgets.QWidget):
         """Description widgets"""
         self.selectedCB = QtWidgets.QCheckBox()
         self.nameTXT = QtWidgets.QLineEdit()
-        # Using helper function for checkboxes
-        # Create checkbox layouts
-        self.baseColorSumLayout, self.baseColorCB = self._createSummaryRow("BC")
-        self.metalnessSumLayout, self.metalnessCB = self._createSummaryRow("M")
-        self.specularRoughSumLayout, self.specularRoughCB = self._createSummaryRow("SR")
-        self.normalSumLayout, self.normalCB = self._createSummaryRow("N")
-        self.displacementSumLayout, self.displacementCB = self._createSummaryRow("D")
+
+        # Storage for checkbox layouts
+        self.summaryLayouts = []
+        self.textureRows = []
+
+        for attr, details in self.texture.textureMapping.items():
+            if hasattr(self.texture, attr):  # Only create if the attribute exists
+                sumLayout, checkbox = self._createSummaryRow(details["abbreviation"])
+                self.summaryLayouts.append((sumLayout, checkbox))
+                
+                rowWidget = ktTextureRowWidget(details["label"])
+                self.textureRows.append(rowWidget)
 
         self.visibilityBTN = QtWidgets.QPushButton() 
         #https://houdini-icons.dev/
@@ -148,21 +155,9 @@ class ktTextureWidget(QtWidgets.QWidget):
 
         # Set the button's style using setStyleSheet
         self.visibilityBTN.setStyleSheet("""
-            QPushButton:flat {
-                color: white;               /* White text */
-                font-size: 16px;            /* Font size */
-                border: 0px solid black;
-                border-radius: 0px;         /* Rounded corners */
-                padding: 10px 20px;         /* Padding inside the button */
+            QPushButton:flat {color: white; font-size: 16px; border: 0px solid black; border-radius: 0px; padding: 10px 20px;
             }
         """)
-
-        # Create texture input widgets
-        self.baseColorRow = ktTextureRowWidget("Base Color")
-        self.metalnessRow = ktTextureRowWidget("Metalness")
-        self.specularRoughRow = ktTextureRowWidget("Specular Rough")
-        self.normalRow = ktTextureRowWidget("Normal")
-        self.displacementRow = ktTextureRowWidget("Displacement")
 
     def createLayouts(self):
         self.mainLayout = QtWidgets.QVBoxLayout(self)
@@ -175,24 +170,17 @@ class ktTextureWidget(QtWidgets.QWidget):
         self.headerGB.setLayout(self.headerLYT)
         self.headerGB.setFixedHeight(60)
         self.headerGB.setStyleSheet("""
-            QGroupBox {
-                background-color: #4D4D4D;
-                border: 0px solid #4D4D4D;  /* Border color and thickness */
-                border-radius: 0px;
-            }
-
-            QGroupBox::title {
-                color: white;  /* Title color (optional) */
-            }
+            QGroupBox {background-color: #4D4D4D; border: 0px solid #4D4D4D; border-radius: 0px; }
+            QGroupBox::title { color: white; }
         """)
 
         # Add Checkboxes
         self.headerLYT.addWidget(self.selectedCB)
         self.headerLYT.addWidget(self.nameTXT)
 
-        # Add layouts to grid
-        for layout in [self.baseColorSumLayout, self.metalnessSumLayout, self.specularRoughSumLayout, self.normalSumLayout, self.displacementSumLayout]:
-            self.headerLYT.addLayout(layout) 
+        # Dynamically add summary rows to the header layout
+        for layout, checkbox in self.summaryLayouts:
+            self.headerLYT.addLayout(layout)
                 
         
         self.headerLYT.addWidget(self.visibilityBTN) 
@@ -205,22 +193,12 @@ class ktTextureWidget(QtWidgets.QWidget):
         self.informationGB.setLayout(self.informationLYT)
         self.informationGB.setVisible(self.visibility)
         self.informationGB.setStyleSheet("""
-            QGroupBox {
-                background-color: #363636;
-                border: 0px solid #363636;  /* Border color and thickness */
-                border-radius: 0px;
-                padding: 0;
-                margin: 0;
-            }
-
-            QGroupBox::title {
-                color: white;  /* Title color (optional) */
-            }
+            QGroupBox { background-color: #363636; border: 0px solid #363636; border-radius: 0px; padding: 0; margin: 0; }
+            QGroupBox::title { color: white; }
         """)
         
-        
         # Add texture input widgets dynamically
-        for row in [self.baseColorRow, self.metalnessRow, self.specularRoughRow, self.normalRow, self.displacementRow]:
+        for row in self.textureRows:
             if row:
                 self.informationLYT.addWidget(row)
 
@@ -232,12 +210,10 @@ class ktTextureWidget(QtWidgets.QWidget):
     def createConnections(self):
         """Connect signals to slots for automatic checkbox updating."""
         self.nameTXT.textChanged.connect(lambda text: self.updateInformation('name', text, None))
-        # Update Texture and setChecked when text changes
-        self.baseColorRow.txt.textChanged.connect(lambda text: self.updateInformation('baseColor', text, self.baseColorCB))
-        self.metalnessRow.txt.textChanged.connect(lambda text: self.updateInformation('metalness', text, self.metalnessCB))
-        self.specularRoughRow.txt.textChanged.connect(lambda text: self.updateInformation('specularRough', text, self.specularRoughCB))
-        self.normalRow.txt.textChanged.connect(lambda text: self.updateInformation('normal', text, self.normalCB))
-        self.displacementRow.txt.textChanged.connect(lambda text: self.updateInformation('displacement', text, self.displacementCB))
+
+        # Dynamically connect each texture row's textChanged signal
+        for row, (sumLayout, checkbox) in zip(self.textureRows, self.summaryLayouts):
+            row.txt.textChanged.connect(lambda text, row=row, checkbox=checkbox: self.updateInformation(row.label, text, checkbox))
 
         # Connect visibility button to toggle texture row visibility
         self.visibilityBTN.clicked.connect(self.toggleVisibility)
@@ -259,11 +235,12 @@ class ktTextureWidget(QtWidgets.QWidget):
     def loadInformation(self):
         #texture = Texture() # type: Texture
         self.nameTXT.setText(self.texture.name)
-        self.baseColorRow.txt.setText(self.texture.baseColor)
-        self.metalnessRow.txt.setText(self.texture.metalness)
-        self.specularRoughRow.txt.setText(self.texture.specularRough)
-        self.normalRow.txt.setText(self.texture.normal)
-        self.displacementRow.txt.setText(self.texture.displacement)
+        # Dynamically load information for each texture row
+        for row, (attr, details) in zip(self.textureRows, self.texture.textureMapping.items()):
+            # Check if the attribute exists in the texture and load its value
+            value = getattr(self.texture, attr, "")
+            #print(f"type: {attr} value: {value}")
+            row.txt.setText(value)
         
         
 
@@ -316,8 +293,13 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.matPathTXT.setReadOnly(True)
         self.matPathBTN = hou.qt.NodeChooserButton()
 
-        self.patternTXT = QtWidgets.QLineEdit()
-        self.patternTXT.setText("@objName_@texName_*_@texture_*.@id.ext")
+        self.patternCMB = QtWidgets.QComboBox()
+        self.patternCMB.addItem('@objName_@texName_*_@texture_*.@id.ext')
+        self.patternCMB.addItem('*_*_*_@objName_*_*_@texName_@texture.ext')
+        self.patternCMB.setEditable(True)
+        self.patternCMB.setStyleSheet("""
+            QComboBox { padding-right: 20px; }
+        """)
 
         self.folderPathTXT = QtWidgets.QLineEdit()
         self.folderPathTXT.setReadOnly(True)
@@ -348,8 +330,10 @@ class ktTextureImporter(QtWidgets.QDialog):
 
         """ Pattern """
         self.patternLYT = QtWidgets.QHBoxLayout()
-        self.patternLYT.addWidget(QtWidgets.QLabel('Pattern: '))
-        self.patternLYT.addWidget(self.patternTXT)
+        patternLBL = QtWidgets.QLabel('Pattern: ')
+        patternLBL.setFixedWidth(60)
+        self.patternLYT.addWidget(patternLBL)
+        self.patternLYT.addWidget(self.patternCMB)
         
 
         """ Folder """
@@ -419,9 +403,8 @@ class ktTextureImporter(QtWidgets.QDialog):
 
         folder_path = "D:/OP_Houdini_Pipeline/HOUdini_Resources/HOUdini_Resources/textures/columns/columns"
         #folder_path = "D:/OP_Houdini_Pipeline/bigPlant"
-        #user_pattern = "*_*_*_@objName_*_*_@texName_@texture.ext"
 
-        filePattern = self.patternTXT.text()
+        filePattern = self.patternCMB.currentText()
         regexPattern = self.getRegexPattern(filePattern)
         textureType = self.textureTypeCMB.currentText() + "Texture"
         textureClass = globals().get(textureType)
