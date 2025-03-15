@@ -1,6 +1,7 @@
 import hou
 import os
 import re
+import voptoolutils
 from PySide2 import QtCore
 from PySide2 import QtWidgets
 from PySide2 import QtGui
@@ -102,7 +103,66 @@ class KarmaTexture(Texture):
     def __init__(self, name="KarmaTexture", baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None, ambientOcclusion=None):
         super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement)
         self.ambientOcclusion = ambientOcclusion
-        self.textureMapping["ambientOcclusion"] =  {"label": "Ambient Occlusion", "abbreviation": "AO", "mapping": ["ao","ambientocclusion"]}
+        self.textureMapping["ambientOcclusion"] =  {"label": "Ambient Occlusion", "abbreviation": "AO", "mapping": ["ao","ambientocclusion","ambientoclussion"]}
+
+    def createTexture(self, parentNode, path):
+        # Create the Arnold Material Builder node
+        mask = voptoolutils.KARMAMTLX_TAB_MASK #voptoolutils._setupMtlXBuilderSubnet(subnet_node=subnet_node, destination_node=dst_node, name=name, mask=mask, folder_label=folder_label, render_context=render_context)
+
+        materialBuilderNode = parentNode.createNode("subnet", self.name)
+        voptoolutils._setupMtlXBuilderSubnet(materialBuilderNode, "karmamaterial", "karmamaterial", mask, "Karma Material Builder", "kma")
+
+        standardSurfaceNode = materialBuilderNode.node("mtlxstandard_surface")
+
+        outMaterialNode = materialBuilderNode.node("Material_Outputs_and_AOVs")
+        outDisplacement = materialBuilderNode.node("mtlxdisplacement") 
+
+        #mtlximage
+        #mtlxtiledimage
+
+        def getFullPath(textureName, path):
+            return os.path.join(path, textureName) if textureName else None
+        
+        # Add the various texture nodes and connect them to the material
+        if self.baseColor:
+            baseColorNode = materialBuilderNode.createNode("mtlximage", f"{self.name}_BC")
+            baseColorNode.parm("file").set(getFullPath(self.baseColor, path))
+            baseColorNode.parm("signature").set("color3")
+            standardSurfaceNode.setNamedInput("base_color", baseColorNode, "out")
+ 
+        if self.metalness:
+            metalnessNode = materialBuilderNode.createNode("mtlximage", f"{self.name}_M")
+            metalnessNode.parm("file").set(getFullPath(self.metalness, path))
+            metalnessNode.parm("signature").set("default")
+            standardSurfaceNode.setNamedInput("metalness", metalnessNode, "out")
+
+        if self.specularRough:
+            specularRoughNode = materialBuilderNode.createNode("mtlximage", f"{self.name}_SR")
+            specularRoughNode.parm("file").set(getFullPath(self.specularRough, path))
+            specularRoughNode.parm("signature").set("default")
+            standardSurfaceNode.setNamedInput("specular_roughness", specularRoughNode, "out")
+
+        if self.normal:
+            normalNode = materialBuilderNode.createNode("mtlximage", f"{self.name}_N")
+            normalNode.parm("file").set(getFullPath(self.normal, path))
+            normalNode.parm("signature").set("vector3")
+
+            normalMapNode = materialBuilderNode.createNode("mtlxnormalmap", f"{self.name}_NM") 
+            normalMapNode.setNamedInput("in", normalNode, "out")
+            standardSurfaceNode.setNamedInput("normal", normalMapNode, "out")
+
+        if self.displacement:
+            displacementNode = materialBuilderNode.createNode("mtlximage", f"{self.name}_D")
+            displacementNode.parm("file").set(getFullPath(self.displacement, path))
+            outDisplacement.setNamedInput("displacement", displacementNode, "out")
+            #rangeNode = materialBuilderNode.createNode("arnold::range", f"{self.name}_RNG") 
+            #rangeNode.setNamedInput("input", displacementNode, "r")
+            #outMaterialNode.setNamedInput("displacement", rangeNode, "r")
+
+        # Organize layout
+        materialBuilderNode.layoutChildren()
+
+        return materialBuilderNode
 
 #endregion
 
@@ -282,8 +342,10 @@ class ktTextureWidget(QtWidgets.QWidget):
 
     def updateInformation(self, textureProperty, text, checkbox):
         """Update the texture property and checkbox status."""
-        textureType = self.texture.getTypeFromAttr("label", textureProperty)
-        
+        if textureProperty == 'name':
+            textureType = 'name'
+        else:
+            textureType = self.texture.getTypeFromAttr("label", textureProperty)
         setattr(self.texture, str(textureType), text.strip())  # Update the corresponding texture property
 
         if checkbox:
@@ -506,7 +568,7 @@ class ktTextureImporter(QtWidgets.QDialog):
             # Display texture information
             for texture in textures.values():
                 #texture = Texture() # type: Texture
-                texture.showInformation()
+                #texture.showInformation()
                 attributes = {key: value for key, value in vars(texture).items() if key != "textureMapping"}
                 newTexture = textureClass(**attributes)
 
