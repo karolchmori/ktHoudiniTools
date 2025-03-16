@@ -728,7 +728,8 @@ class ktTextureImporter(QtWidgets.QDialog):
             if typeNode == "materiallibrary":
                 self.matPathTXT.setText(str(node.path()))
             else:
-              self.showMessageError("The node selected is not a Material Library, please check")
+                self.matPathTXT.clear()
+                self.showMessageError("The node selected is not a Material Library, please check")
     
     def onClick_createBTN(self):
         """
@@ -836,41 +837,44 @@ class ktTextureImporter(QtWidgets.QDialog):
         textures = {}
         folderPath = self.verifyFolderPath(folderPath)
 
-        # Loop through files in the directory
-        for root, dirs, files in os.walk(folderPath):
-            for filename in files:
-                if filename.endswith((".exr", ".png")):  # Filter by file type
-                    match = re.match(regexPattern, filename)
-                    if match:
-                        objName = match.group("objName") if "objName" in match.groupdict() else None
-                        texName = match.group("texName")
-                        textureType = match.group("texType")
-                        textureId = match.group("id") if "id" in match.groupdict() else None
+        try:
+            # Loop through files in the directory
+            for root, dirs, files in os.walk(folderPath):
+                for filename in files:
+                    if filename.endswith((".exr", ".png")):  # Filter by file type
+                        match = re.match(regexPattern, filename)
+                        if match:
+                            objName = match.group("objName") if "objName" in match.groupdict() else None
+                            texName = match.group("texName")
+                            textureType = match.group("texType")
+                            textureId = match.group("id") if "id" in match.groupdict() else None
 
-                        finalName = f"{objName}_{texName}" if objName else texName
+                            finalName = f"{objName}_{texName}" if objName else texName
 
-                        # Create texture object if not exists
-                        if finalName not in textures:
-                            textures[finalName] = textureClass(name=finalName) 
-                            #print(f"Created {textures[finalName].__class__.__name__} object: {finalName}")  # Debugging output
-                    
-                        # Replace @id with <UDIM> in the filename if @id is present
-                        if textureId:
-                            filename = filename.replace(textureId, "<UDIM>")
+                            # Create texture object if not exists
+                            if finalName not in textures:
+                                textures[finalName] = textureClass(name=finalName) 
+                                #print(f"Created {textures[finalName].__class__.__name__} object: {finalName}")  # Debugging output
+                        
+                            # Replace @id with <UDIM> in the filename if @id is present
+                            if textureId:
+                                filename = filename.replace(textureId, "<UDIM>")
 
-                        textureType = textureType.lower()
-                        textureParent = textures[finalName].getTypeFromAttr("mapping", textureType)
+                            textureType = textureType.lower()
+                            textureParent = textures[finalName].getTypeFromAttr("mapping", textureType)
 
-                        # Check if the textureType exists in the mapping dictionary
-                        if textureParent:
-                            relativePath = os.path.relpath(root, folderPath)
-                            relativePath = relativePath.replace("\\", "/")
+                            # Check if the textureType exists in the mapping dictionary
+                            if textureParent:
+                                relativePath = os.path.relpath(root, folderPath)
+                                relativePath = relativePath.replace("\\", "/")
 
-                            if relativePath != ".":
-                                finalPath = relativePath + "/" + filename
-                            else:
-                                finalPath = filename                            
-                            setattr(textures[finalName], textureParent, finalPath)
+                                if relativePath != ".":
+                                    finalPath = relativePath + "/" + filename
+                                else:
+                                    finalPath = filename                            
+                                setattr(textures[finalName], textureParent, finalPath)
+        except OSError as e:
+            self.showMessageError(f"Error reading directory: {e}")
         
         return textures
 
@@ -878,8 +882,9 @@ class ktTextureImporter(QtWidgets.QDialog):
         """
         Selects or deselects all texture checkboxes based on the "Select All" state.
         """
-        for textureWD in self.texList:
-            textureWD.selectedCB.setChecked(self.selectAllCB.isChecked())
+        if self.texList:
+            for textureWD in self.texList:
+                textureWD.selectedCB.setChecked(self.selectAllCB.isChecked())
 
     def clearLayout(self, layout):
         """
