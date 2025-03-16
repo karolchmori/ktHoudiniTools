@@ -21,7 +21,7 @@ Dependencies:
     - Libraries: hou,voptoolutils
 
 Notes:
-    If you find any bugs, let me know before making changes! I'd love to improve it.
+    Found a bug? Let me know before you start tweaking things! I'm always happy to improve this tool.
 
 For support or inquiries, contact: karolchmori@hotmail.com
 """
