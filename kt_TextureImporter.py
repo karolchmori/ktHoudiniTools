@@ -1,3 +1,31 @@
+"""
+User Information and Program Documentation
+
+File: kt_TextureImporter.py
+Author: Karol Ch. Mori
+Date: 2025-03-16
+Version: 1.0
+
+Description:
+    This program is designed to to detect files with certain pattern identification to be able to create
+    materials dynamically.
+
+User Information:
+    - User Name: Karol Ch. Mori
+    - User Email: karolchmori@hotmail.com
+    - Purpose of Use: School projects (Non-Commercial)
+
+
+Dependencies:
+    - Python 3.11.7
+    - Libraries: hou,voptoolutils
+
+Notes:
+    If you find any bugs, let me know before making changes! I'd love to improve it.
+
+For support or inquiries, contact: karolchmori@hotmail.com
+"""
+
 import hou
 import os
 import re
