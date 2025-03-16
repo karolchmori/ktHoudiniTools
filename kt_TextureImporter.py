@@ -8,9 +8,33 @@ from PySide2 import QtGui
 
 #region Texture
 class Texture(object):
+    """
+    A class representing a texture object with various material properties.
 
-    """docstring for ClassName."""
+    Attributes:
+        name (str): The name of the texture.
+        baseColor (str, optional): The base color texture file value.
+        metalness (str, optional): The metalness texture file value.
+        specularRough (str, optional): The specular roughness texture file value.
+        normal (str, optional): The normal map texture file value.
+        displacement (str, optional): The displacement map texture file value.
+        textureMapping (dict): A dictionary mapping texture attributes to their corresponding labels, abbreviations and mappings.
+    """
     def __init__(self, name, baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None):
+        """
+        Initializes a Texture object with various material properties.
+
+        Args:
+            name (str): The name of the texture.
+            baseColor (str, optional): The base color texture file value. Defaults to None.
+            metalness (str, optional): The metalness texture file value. Defaults to None.
+            specularRough (str, optional): The specular roughness texture file value. Defaults to None.
+            normal (str, optional): The normal map texture file value. Defaults to None.
+            displacement (str, optional): The displacement map texture file value. Defaults to None.
+        
+        Attributes:
+            textureMapping (dict): A dictionary mapping texture attributes to their corresponding labels, abbreviations and mappings.
+        """
         self.name = name
         self.baseColor = baseColor
         self.metalness = metalness
@@ -26,16 +50,28 @@ class Texture(object):
             "displacement": {"label": "Displacement", "abbreviation": "D", "mapping": ["height", "displacement"]},
         }
     
-    def createTexture(self): #We need it here so we can create textures depending on the type (it doesn't depend on the widget or window)
+    def createTexture(self):
+        """Placeholder method for creating a texture object."""
         pass
 
     def getTypeFromAttr(self, attr, text):
+        """
+        Determines the texture type based on a given attribute and text mapping.
+
+        Args:
+            attr (str): The attribute name to check within the texture mapping.
+            text (str): The text used to identify the corresponding texture type.
+
+        Returns:
+            str or None: The parent texture type if found, otherwise None.
+        """
         for parent, children in self.textureMapping.items():
             if text in children[attr]:
                 return parent
         return None
 
     def showInformation(self):
+        """ Prints all attributes of the texture object except the `textureMapping` dictionary."""
         print("-----------------------------------------")
         for attribute, value in vars(self).items():  # Iterate over the instance's attributes
             if attribute != "textureMapping":  # Exclude textureMapping from being printed
@@ -43,11 +79,36 @@ class Texture(object):
         print("-----------------------------------------")
 
 class ArnoldTexture(Texture):
-    """docstring for ClassName."""
+    """
+    This class extends the `Texture` class and provides functionality to create 
+    an Arnold Material Builder node with various texture inputs in a shader network.
+
+    Attributes:
+        Inherits all attributes from the `Texture` class.
+    """
     def __init__(self, name="ArnoldTexture", baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None):
+        """Initializes a ArnoldTexture with various material properties
+
+        Args:
+            name (str, optional): Name of the texture. Defaults to "ArnoldTexture".
+            baseColor (str, optional): The baseColor texture file value. Defaults to None.
+            metalness (str, optional): The metalness texture file value. Defaults to None.
+            specularRough (str, optional): The specularRough texture file value. Defaults to None.
+            normal (str, optional): The displacement texture file value. Defaults to None.
+            displacement (str, optional): The base color texture file value. Defaults to None.
+        """
         super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement)
     
     def createTexture(self, parentNode, path):
+        """Creates an Arnold Material Builder node connecting Arnold shader nodes for various texture attributes.
+
+        Args:
+            parentNode (obj): Parent node where all nodes will be created an connected
+            path (str): Folder path where the files will be located
+
+        Returns:
+            obj: Returns material node created with everything connected
+        """
         # Create the Arnold Material Builder node
         materialBuilderNode = parentNode.createNode("arnold_materialbuilder", self.name)
         outMaterialNode = materialBuilderNode.node("OUT_material")
@@ -99,13 +160,39 @@ class ArnoldTexture(Texture):
         return materialBuilderNode
 
 class KarmaTexture(Texture):
-    """docstring for ClassName."""
+    """
+    This class extends the `Texture` class and provides functionality to create 
+    an Karma Material Builder node with various texture inputs in a shader network.
+
+    Attributes:
+        Inherits all attributes from the `Texture` class.
+    """
     def __init__(self, name="KarmaTexture", baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None, ambientOcclusion=None):
+        """Initializes a KarmaTexture with various material properties
+
+        Args:
+            name (str, optional): Name of the texture. Defaults to "KarmaTexture".
+            baseColor (str, optional): The baseColor texture file value. Defaults to None.
+            metalness (str, optional): The metalness texture file value. Defaults to None.
+            specularRough (str, optional): The specularRough texture file value. Defaults to None.
+            normal (str, optional): The displacement texture file value. Defaults to None.
+            displacement (str, optional): The base color texture file value. Defaults to None.
+            ambientOcclusion (str, optional): The ambient occlusion texture file value. Defaults to None.
+        """
         super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement)
         self.ambientOcclusion = ambientOcclusion
         self.textureMapping["ambientOcclusion"] =  {"label": "Ambient Occlusion", "abbreviation": "AO", "mapping": ["ao","ambientocclusion","ambientoclussion"]}
 
     def createTexture(self, parentNode, path):
+        """Creates an Karma Material Builder node connecting MaterialX shader nodes for various texture attributes.
+
+        Args:
+            parentNode (obj): Parent node where all nodes will be created an connected
+            path (str): Folder path where the files will be located
+
+        Returns:
+            obj: Returns material node created with everything connected
+        """
         # Create the Arnold Material Builder node
         mask = voptoolutils.KARMAMTLX_TAB_MASK #voptoolutils._setupMtlXBuilderSubnet(subnet_node=subnet_node, destination_node=dst_node, name=name, mask=mask, folder_label=folder_label, render_context=render_context)
 
@@ -155,9 +242,6 @@ class KarmaTexture(Texture):
             displacementNode = materialBuilderNode.createNode("mtlximage", f"{self.name}_D")
             displacementNode.parm("file").set(getFullPath(self.displacement, path))
             outDisplacement.setNamedInput("displacement", displacementNode, "out")
-            #rangeNode = materialBuilderNode.createNode("arnold::range", f"{self.name}_RNG") 
-            #rangeNode.setNamedInput("input", displacementNode, "r")
-            #outMaterialNode.setNamedInput("displacement", rangeNode, "r")
 
         # Organize layout
         materialBuilderNode.layoutChildren()
@@ -169,6 +253,13 @@ class KarmaTexture(Texture):
 #region Widget
 class ktTextureRowWidget(QtWidgets.QWidget):
     def __init__(self, label, fileType=hou.fileType.Image, mainPath=None):
+        """Creates a horizontal widget that contains a label, text field and button.
+
+        Args:
+            label (str): _description_
+            fileType (hou.fileType, optional): Type of file Type that the selection is going to filter. Defaults to hou.fileType.Image.
+            mainPath (str, optional): Folder Path selected by the user. Defaults to None.
+        """
         super().__init__()
 
         self.label = label
@@ -177,7 +268,7 @@ class ktTextureRowWidget(QtWidgets.QWidget):
         self.initUI()
 
     def initUI(self):
-        """Set up the layout, label, text field, and button."""
+        """Set up the layout, label, text field and button."""
         layout = QtWidgets.QHBoxLayout(self)
 
         lbl = QtWidgets.QLabel(self.label)
@@ -191,7 +282,6 @@ class ktTextureRowWidget(QtWidgets.QWidget):
             self.btn.setFileChooserStartDirectory(self.mainPath)
 
         # Connect the button's signal to update the text field
-        #self.btn.fileSelected.connect(lambda path: self.txt.setText(path))
         self.btn.fileSelected.connect(self.onFileSelected_btn)
 
         # Add widgets to the layout
@@ -205,23 +295,52 @@ class ktTextureRowWidget(QtWidgets.QWidget):
         self.setLayout(layout)
 
     def onFileSelected_btn(self, path):
-        """Update the text field when a file is selected."""
+        """Update the text field when a file is selected but only the relativePath.
+
+        Args:
+            path (str): Full path selected by the user
+        """
+        
         relativePath = os.path.relpath(path, self.mainPath)
         relativePath = relativePath.replace("\\", "/")
         self.txt.setText(relativePath)
 
     
 class ktTextureWidget(QtWidgets.QWidget):
+    """
+    A Qt widget for displaying and managing texture properties in a UI.
+
+    This widget provides an interface for users to view and modify texture attributes.
+    It dynamically creates UI elements based on the given texture's properties and
+    allows toggling visibility of detailed texture inputs.
+
+    Attributes:
+        visibility (bool): Determines if texture rows are visible.
+        texture (Texture): The texture object containing attributes like base color, normal, etc.
+        mainPath (str): The main directory path where texture files are stored.
+        selectedCB (QCheckBox): Checkbox for selecting the texture.
+        nameTXT (QLineEdit): Text input for the texture's name.
+        summaryLayouts (list): List of dynamically created layouts for texture attributes.
+        textureRows (list): List of dynamically created texture row widgets.
+        visibilityBTN (QPushButton): Button for toggling visibility of detailed texture inputs.
+        headerLYT (QHBoxLayout): Layout for the header section.
+        informationLYT (QVBoxLayout): Layout for detailed texture inputs.
+    """
     def __init__(self, texture=None, mainPath=None):
+        """
+        Initializes the ktTextureWidget with a given texture and path.
+
+        Args:
+            texture (Texture, optional): The texture object containing material properties. Defaults to None.
+            mainPath (str, optional): The main directory path where texture files are stored. Defaults to None.
+        """
         super().__init__()
         
         self.visibility = False
         self.texture = texture
         self.mainPath = mainPath
         
-        """
-        UI Creation
-        """
+
         self.createWidgets()
         self.createLayouts()
         self.createConnections()
@@ -229,7 +348,15 @@ class ktTextureWidget(QtWidgets.QWidget):
 
 
     def _createSummaryRow(self,label):
-        """Creates a row with a QLabel and QCheckBox."""
+        """
+        Creates a row with a QLabel and a QCheckBox for summarizing texture properties.
+
+        Args:
+            label (str): The text label for the row.
+
+        Returns:
+            tuple: A layout containing the label and the checkbox widget itself.
+        """
         layout = QtWidgets.QVBoxLayout()
         lbl = QtWidgets.QLabel(label)
         lbl.setFixedHeight(15)
@@ -244,7 +371,12 @@ class ktTextureWidget(QtWidgets.QWidget):
         return layout, cb
 
     def createWidgets(self):
-        """Description widgets"""
+        """
+        Creates UI widgets for the texture properties.
+
+        Initializes checkboxes, text fields, visibility buttons, and dynamically generates
+        texture-related rows based on the texture object.
+        """
         self.selectedCB = QtWidgets.QCheckBox()
         self.nameTXT = QtWidgets.QLineEdit()
 
@@ -275,6 +407,12 @@ class ktTextureWidget(QtWidgets.QWidget):
         """)
 
     def createLayouts(self):
+        """
+        Organizes and arranges UI elements into structured layouts.
+
+        Sets up the header section, summary layout, and detailed texture input layout
+        while applying styling and spacing.
+        """
         self.mainLayout = QtWidgets.QVBoxLayout(self)
         self.mainLayout.setContentsMargins(0, 0, 0, 0)
         self.mainLayout.setSpacing(0)
@@ -323,7 +461,12 @@ class ktTextureWidget(QtWidgets.QWidget):
         self.mainLayout.addWidget(self.informationGB)
 
     def createConnections(self):
-        """Connect signals to slots for automatic checkbox updating."""
+        """
+        Establishes connections between UI elements and their respective functions.
+
+        Connects signals such as textChanged and button clicks to methods that handle
+        updating texture properties and toggling visibility.
+        """
         self.nameTXT.textChanged.connect(lambda text: self.updateInformation('name', text, None))
 
         # Dynamically connect each texture row's textChanged signal
@@ -335,13 +478,19 @@ class ktTextureWidget(QtWidgets.QWidget):
 
     def toggleVisibility(self):
         """Toggle the visibility of the texture rows using the visibility flag."""
-        # Toggle visibility flag
         self.visibility = not self.visibility
         self.informationGB.setVisible(self.visibility)
         self.visibilityBTN.setIcon(self.iconExpanded if self.visibility else self.iconCollapsed)
 
     def updateInformation(self, textureProperty, text, checkbox):
-        """Update the texture property and checkbox status."""
+        """
+        Updates the texture object based on user input.
+
+        Args:
+            textureProperty (str): The texture property being modified.
+            text (str): The new value entered by the user.
+            checkbox (QCheckBox, optional): The checkbox linked to this property, updated accordingly.
+        """
         if textureProperty == 'name':
             textureType = 'name'
         else:
@@ -353,7 +502,10 @@ class ktTextureWidget(QtWidgets.QWidget):
 
 
     def loadInformation(self):
-        #texture = Texture() # type: Texture
+        """
+        Loads existing texture information into the UI. Fills text fields with saved texture values 
+        and updates checkboxes based on existing data.
+        """
         self.nameTXT.setText(self.texture.name)
         # Dynamically load information for each texture row
         for row, (attr, details) in zip(self.textureRows, self.texture.textureMapping.items()):
@@ -362,19 +514,40 @@ class ktTextureWidget(QtWidgets.QWidget):
             #print(f"type: {attr} value: {value}")
             row.txt.setText(value)
         
-        
-
 #endregion
             
 #region Main
 
-
-
 def getHoudiniMainWindow():
+    """
+    Retrieves the main Houdini window.
+
+    Returns:
+        QWidget: The main Houdini Qt window.
+    """
     return hou.qt.mainWindow()
 
 class ktTextureImporter(QtWidgets.QDialog):
+    """
+    A Houdini Qt dialog for importing textures based on predefined patterns.
+
+    This class provides a UI to select texture types, specify folder paths, 
+    define name-matching patterns, and import textures into a Material Library.
+
+    Attributes:
+        texList (list): A list of texture widgets displayed in the UI.
+        mainLayout (QVBoxLayout): The main layout containing all widgets.
+    """
     def __init__(self, parent=getHoudiniMainWindow()):
+        """
+        Initializes the ktTextureImporter dialog.
+
+        This constructor sets up the dialog window, initializes UI elements, 
+        and establishes connections between widgets and their event handlers.
+
+        Args:
+            parent (QWidget, optional): The parent widget, defaulting to the Houdini main window.
+        """
         super(ktTextureImporter, self).__init__(parent)
         
         self.setWindowTitle('kt_TextureImporter')
@@ -388,6 +561,12 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.createConnections()
 
     def keyPressEvent(self, event):
+        """
+        Overrides the key press event to prevent triggering actions on Enter key press.
+
+        Args:
+            event (QKeyEvent): The key event triggered by user input.
+        """
         if event.key() in (QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter):
             event.accept()  # Prevents default behavior
         '''else:
@@ -490,6 +669,7 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.mainLayout.addWidget(self.texScroll)
 
     def createConnections(self):
+        """Function that creates all the connections"""
         self.folderPathBTN.fileSelected.connect(self.onClick_folderPathBTN)
         self.matPathBTN.nodeSelected.connect(self.onClick_matPathBTN)
         self.clearBTN.clicked.connect(self.onClick_clearBTN)
@@ -499,6 +679,12 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.patternCMB.lineEdit().textChanged.connect(self.onChange_Finished_patternCMB)
     
     def showMessageError(self, message):
+        """
+        Displays an error message dialog.
+
+        Args:
+            message (str): The error message to display.
+        """
         msg = QtWidgets.QMessageBox()
         msg.setIcon(QtWidgets.QMessageBox.Critical)
         msg.setText("Error: " + message)
@@ -506,17 +692,37 @@ class ktTextureImporter(QtWidgets.QDialog):
         msg.exec_()
 
     def onClick_clearBTN(self):
+        """
+        Clears all selected textures and resets input fields.
+
+        Resets the folder path and material library path while disabling 
+        the "Create" button.
+        """
         self.clearLayout(self.texLYT)
         self.folderPathTXT.setText("")
         self.matPathTXT.setText("")
         self.createBTN.setEnabled(False)
     
     def onClick_folderPathBTN(self, filePath):
+        """
+        Handles folder selection and triggers texture loading.
+
+        Args:
+            filePath (str): The selected folder path.
+        """
         if filePath:
             self.folderPathTXT.setText(filePath)
             self.loadTextures()
     
     def onClick_matPathBTN(self, node):
+        """
+        Validates and sets the selected Material Library node.
+
+        Ensures the selected node is a Material Library and updates the UI accordingly.
+
+        Args:
+            node (hou.Node): The selected Houdini node.
+        """
         if node:
             typeNode = node.type().name()
             if typeNode == "materiallibrary":
@@ -525,6 +731,12 @@ class ktTextureImporter(QtWidgets.QDialog):
               self.showMessageError("The node selected is not a Material Library, please check")
     
     def onClick_createBTN(self):
+        """
+        Creates textures inside the selected Material Library.
+
+        Uses the imported texture data to generate texture nodes inside 
+        the specified Houdini Material Library.
+        """
         parentNode = hou.node(self.matPathTXT.text())
         
         if parentNode:
@@ -539,19 +751,40 @@ class ktTextureImporter(QtWidgets.QDialog):
             self.showMessageError("A material Library needs to be selected")
     
     def onChange_selectAllCB(self):
-        if self.selectAllCB.isChecked:
+        """
+        Toggles the selection state of all texture checkboxes.
+
+        If checked, all textures in the list are selected for import.
+        """
+        if self.selectAllCB.isChecked():
             self.checkAllTextures()
     
     def onChange_textureTypeCMB(self):
-            if self.folderPathTXT.text():
-                self.loadTextures()
+        """
+        Reloads textures when the texture type selection changes.
+
+        This function ensures the displayed textures match the selected type.
+        """
+        if self.folderPathTXT.text():
+            self.loadTextures()
     
     def onChange_Finished_patternCMB(self):
+        """
+        Reloads textures when the filename pattern is modified.
+
+        Updates the texture list to reflect the new filename-matching pattern.
+        """
         if self.folderPathTXT.text():
             self.loadTextures()
             
 
     def loadTextures(self):
+        """
+        Loads textures from the selected folder based on the current pattern.
+
+        Uses regex matching to filter textures and displays matching results 
+        in the UI.
+        """
         self.clearLayout(self.texLYT)
         self.texList = []
 
@@ -586,10 +819,22 @@ class ktTextureImporter(QtWidgets.QDialog):
             self.texLYT.addWidget(lbl)
 
     def readTexturesFromFolder(self, folderPath, regexPattern, textureClass=Texture):
+        """
+        Reads and organizes textures from a specified folder.
+
+        Iterates through files in the given directory, applies regex matching 
+        to extract texture information, and maps them to texture attributes.
+
+        Args:
+            folderPath (str): The directory containing texture files.
+            regexPattern (str): The regex pattern to match filenames.
+            textureClass (type): The texture class used to instantiate textures.
+
+        Returns:
+            dict: A dictionary of texture objects mapped by texture names.
+        """
         textures = {}
-        #print(f"BEFORE readTexturesFromFolder = {folderPath}")
         folderPath = self.verifyFolderPath(folderPath)
-        #print(f"AFTER readTexturesFromFolder = {folderPath}")
 
         # Loop through files in the directory
         for root, dirs, files in os.walk(folderPath):
@@ -609,7 +854,7 @@ class ktTextureImporter(QtWidgets.QDialog):
                             textures[finalName] = textureClass(name=finalName) 
                             #print(f"Created {textures[finalName].__class__.__name__} object: {finalName}")  # Debugging output
                     
-                        # Replace @id with $F in the filename if @id is present
+                        # Replace @id with <UDIM> in the filename if @id is present
                         if textureId:
                             filename = filename.replace(textureId, "<UDIM>")
 
@@ -630,10 +875,19 @@ class ktTextureImporter(QtWidgets.QDialog):
         return textures
 
     def checkAllTextures(self):
+        """
+        Selects or deselects all texture checkboxes based on the "Select All" state.
+        """
         for textureWD in self.texList:
             textureWD.selectedCB.setChecked(self.selectAllCB.isChecked())
 
     def clearLayout(self, layout):
+        """
+        Clears all widgets and items from a given layout.
+
+        Args:
+            layout (QLayout): The layout to be cleared.
+        """
         self.selectAllCB.setChecked(False)
         for i in reversed(range(layout.count())):
             item = layout.itemAt(i)
@@ -646,6 +900,15 @@ class ktTextureImporter(QtWidgets.QDialog):
         
 
     def getRegexPattern(self, userPattern):
+        """
+        Converts a user-defined pattern into a regex pattern.
+
+        Args:
+            userPattern (str): The user-defined pattern containing placeholders.
+
+        Returns:
+            str: A formatted regex pattern string for matching filenames.
+        """
         # Convert user pattern into a regex pattern
         regexPattern = re.escape(userPattern)  # Escape special characters
         regexPattern = regexPattern.replace(r"\@", "")  # Remove escape on placeholders
@@ -665,6 +928,19 @@ class ktTextureImporter(QtWidgets.QDialog):
         return regexPattern
 
     def verifyFolderPath(self, folderPath):
+        """
+        Resolves environment variable prefixes in a folder path.
+
+        If the folder path contains Houdini environment variables ($HOME, $HIP, $JOB),
+        this function replaces them with their corresponding values. Otherwise, it 
+        returns the original path.
+
+        Args:
+            folderPath (str): The folder path, potentially containing Houdini variables.
+
+        Returns:
+            str: The resolved absolute folder path.
+        """
         pathRoot = folderPath.partition("/")[0]
         pathOriginal = folderPath.partition("/")[2]
 
