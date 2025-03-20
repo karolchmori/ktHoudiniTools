@@ -4,7 +4,7 @@ User Information and Program Documentation
 File: kt_TextureImporter.py
 Author: Karol Ch. Mori
 Date: 2025-03-16
-Version: 1.0
+Version: 1.1.0
 
 Description:
     This program is designed to to detect files with certain pattern identification to be able to create
@@ -232,6 +232,7 @@ class KarmaTexture(Texture):
         outMaterialNode = materialBuilderNode.node("Material_Outputs_and_AOVs")
         outDisplacement = materialBuilderNode.node("mtlxdisplacement") 
 
+        imageType = "mtlximage"
         #mtlximage
         #mtlxtiledimage
 
@@ -240,25 +241,36 @@ class KarmaTexture(Texture):
         
         # Add the various texture nodes and connect them to the material
         if self.baseColor:
-            baseColorNode = materialBuilderNode.createNode("mtlximage", f"{self.name}_BC")
+            baseColorNode = materialBuilderNode.createNode(imageType, f"{self.name}_BC")
             baseColorNode.parm("file").set(getFullPath(self.baseColor, path))
             baseColorNode.parm("signature").set("color3")
-            standardSurfaceNode.setNamedInput("base_color", baseColorNode, "out")
+
+            if self.ambientOcclusion:
+                ambientOcclusionNode = materialBuilderNode.createNode(imageType, f"{self.name}_AO")
+                ambientOcclusionNode.parm("file").set(getFullPath(self.ambientOcclusion, path))
+                ambientOcclusionNode.parm("signature").set("color3")
+                multiplyNode = materialBuilderNode.createNode("mtlxmultiply", f"{self.name}_Multi")
+                multiplyNode.setNamedInput("in1", baseColorNode, "out")
+                multiplyNode.setNamedInput("in2", ambientOcclusionNode, "out")
+
+                standardSurfaceNode.setNamedInput("base_color", multiplyNode, "out")
+            else:
+                standardSurfaceNode.setNamedInput("base_color", baseColorNode, "out")
  
         if self.metalness:
-            metalnessNode = materialBuilderNode.createNode("mtlximage", f"{self.name}_M")
+            metalnessNode = materialBuilderNode.createNode(imageType, f"{self.name}_M")
             metalnessNode.parm("file").set(getFullPath(self.metalness, path))
             metalnessNode.parm("signature").set("default")
             standardSurfaceNode.setNamedInput("metalness", metalnessNode, "out")
 
         if self.specularRough:
-            specularRoughNode = materialBuilderNode.createNode("mtlximage", f"{self.name}_SR")
+            specularRoughNode = materialBuilderNode.createNode(imageType, f"{self.name}_SR")
             specularRoughNode.parm("file").set(getFullPath(self.specularRough, path))
             specularRoughNode.parm("signature").set("default")
             standardSurfaceNode.setNamedInput("specular_roughness", specularRoughNode, "out")
 
         if self.normal:
-            normalNode = materialBuilderNode.createNode("mtlximage", f"{self.name}_N")
+            normalNode = materialBuilderNode.createNode(imageType, f"{self.name}_N")
             normalNode.parm("file").set(getFullPath(self.normal, path))
             normalNode.parm("signature").set("vector3")
 
@@ -267,7 +279,7 @@ class KarmaTexture(Texture):
             standardSurfaceNode.setNamedInput("normal", normalMapNode, "out")
 
         if self.displacement:
-            displacementNode = materialBuilderNode.createNode("mtlximage", f"{self.name}_D")
+            displacementNode = materialBuilderNode.createNode(imageType, f"{self.name}_D")
             displacementNode.parm("file").set(getFullPath(self.displacement, path))
             outDisplacement.setNamedInput("displacement", displacementNode, "out")
 
