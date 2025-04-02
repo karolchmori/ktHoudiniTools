@@ -49,7 +49,8 @@ class Texture(object):
         ambientOcclusion (str, optional): The Ambient Occlusion map texture file value. Defaults to None.
         textureMapping (dict): A dictionary mapping texture attributes to their corresponding labels, abbreviations and mappings.
     """
-    def __init__(self, name, baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None, ambientOcclusion=None):
+    def __init__(self, name, baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None, ambientOcclusion=None,
+                 transmission=None, opacity=None):
         """
         Initializes a Texture object with various material properties.
 
@@ -72,6 +73,8 @@ class Texture(object):
         self.normal = normal
         self.displacement = displacement
         self.ambientOcclusion = ambientOcclusion
+        self.transmission = transmission
+        self.opacity = opacity
 
         self.textureMapping = {
             "baseColor": {"label": "Base Color", "abbreviation": "BC", "mapping": ["basecolor", "base", "albedo"]},
@@ -80,6 +83,8 @@ class Texture(object):
             "normal": {"label": "Normal", "abbreviation": "N", "mapping": ["normal"]},
             "displacement": {"label": "Displacement", "abbreviation": "D", "mapping": ["height", "displacement"]},
             "ambientOcclusion": {"label": "Ambient Occlusion", "abbreviation": "AO", "mapping": ["ao","ambientocclusion","ambientoclussion"]},
+            "transmission": {"label": "Transmission", "abbreviation": "T", "mapping": ["transmission","transmision"]},
+            "opacity": {"label": "Opacity", "abbreviation": "O", "mapping": ["opacity"]},
         }
 
     
@@ -119,7 +124,8 @@ class ArnoldTexture(Texture):
     Attributes:
         Inherits all attributes from the `Texture` class.
     """
-    def __init__(self, name="ArnoldTexture", baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None, ambientOcclusion=None):
+    def __init__(self, name="ArnoldTexture", baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None, ambientOcclusion=None,
+                 transmission=None, opacity=None):
         """Initializes a ArnoldTexture with various material properties
 
         Args:
@@ -130,7 +136,8 @@ class ArnoldTexture(Texture):
             normal (str, optional): The displacement texture file value. Defaults to None.
             displacement (str, optional): The base color texture file value. Defaults to None.
         """
-        super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement, ambientOcclusion=ambientOcclusion)
+        super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement, ambientOcclusion=ambientOcclusion,
+                         transmission=transmission, opacity=opacity)
     
     def createTexture(self, parentNode, path):
         """Creates an Arnold Material Builder node connecting Arnold shader nodes for various texture attributes.
@@ -156,10 +163,20 @@ class ArnoldTexture(Texture):
         if self.baseColor:
             baseColorNode = materialBuilderNode.createNode("arnold::image", f"{self.name}_BC")
             baseColorNode.parm("filename").set(getFullPath(self.baseColor, path))
-
             colorCorrectNode = materialBuilderNode.createNode("arnold::color_correct", f"{self.name}_CC") 
-            colorCorrectNode.setNamedInput("input", baseColorNode, "rgba")
-            standardSurfaceNode.setNamedInput("base_color", colorCorrectNode, "rgba")
+
+            if self.ambientOcclusion:
+                ambientOcclusionNode = materialBuilderNode.createNode("arnold::image", f"{self.name}_AO")
+                ambientOcclusionNode.parm("filename").set(getFullPath(self.ambientOcclusion, path))
+                multiplyNode = materialBuilderNode.createNode("arnold::multiply", f"{self.name}_Multi")
+                multiplyNode.setNamedInput("input1", baseColorNode, "rgba")
+                multiplyNode.setNamedInput("input2", ambientOcclusionNode, "rgba")
+
+                colorCorrectNode.setNamedInput("input", multiplyNode, "rgb")
+            else:
+                colorCorrectNode.setNamedInput("input", baseColorNode, "rgba")
+
+            standardSurfaceNode.setNamedInput("base_color", colorCorrectNode, "rgba")  
  
         if self.metalness:
             metalnessNode = materialBuilderNode.createNode("arnold::image", f"{self.name}_M")
@@ -186,6 +203,15 @@ class ArnoldTexture(Texture):
             rangeNode = materialBuilderNode.createNode("arnold::range", f"{self.name}_RNG") 
             rangeNode.setNamedInput("input", displacementNode, "r")
             outMaterialNode.setNamedInput("displacement", rangeNode, "r")
+        
+        if self.transmission:
+            transmissionNode = materialBuilderNode.createNode("arnold::image", f"{self.name}_T")
+            standardSurfaceNode.setNamedInput("transmission_color", transmissionNode, "rgba")
+            #TODO MODIFY the value transmission to 1
+
+        if self.opacity:
+            opacityNode = materialBuilderNode.createNode("arnold::image", f"{self.name}_O")
+            standardSurfaceNode.setNamedInput("opacity", opacityNode, "rgba")
 
         # Organize layout
         materialBuilderNode.layoutChildren()
@@ -200,7 +226,8 @@ class KarmaTexture(Texture):
     Attributes:
         Inherits all attributes from the `Texture` class.
     """
-    def __init__(self, name="KarmaTexture", baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None, ambientOcclusion=None):
+    def __init__(self, name="KarmaTexture", baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None, ambientOcclusion=None,
+                 transmission=None, opacity=None):
         """Initializes a KarmaTexture with various material properties
 
         Args:
@@ -212,7 +239,8 @@ class KarmaTexture(Texture):
             displacement (str, optional): The base color texture file value. Defaults to None.
             ambientOcclusion (str, optional): The ambient occlusion texture file value. Defaults to None.
         """
-        super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement, ambientOcclusion=ambientOcclusion)
+        super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement, ambientOcclusion=ambientOcclusion,
+                         transmission=transmission, opacity=opacity)
 
 
     def createTexture(self, parentNode, path):
