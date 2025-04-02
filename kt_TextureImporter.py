@@ -3,8 +3,8 @@ User Information and Program Documentation
 
 File: kt_TextureImporter.py
 Author: Karol Ch. Mori
-Date: 2025-03-16
-Version: 1.1.0
+Date: 2025-04-02
+Version: 1.2.0
 
 Description:
     This program is designed to to detect files with certain pattern identification to be able to create
@@ -46,9 +46,10 @@ class Texture(object):
         specularRough (str, optional): The specular roughness texture file value.
         normal (str, optional): The normal map texture file value.
         displacement (str, optional): The displacement map texture file value.
+        ambientOcclusion (str, optional): The Ambient Occlusion map texture file value. Defaults to None.
         textureMapping (dict): A dictionary mapping texture attributes to their corresponding labels, abbreviations and mappings.
     """
-    def __init__(self, name, baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None):
+    def __init__(self, name, baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None, ambientOcclusion=None):
         """
         Initializes a Texture object with various material properties.
 
@@ -59,6 +60,7 @@ class Texture(object):
             specularRough (str, optional): The specular roughness texture file value. Defaults to None.
             normal (str, optional): The normal map texture file value. Defaults to None.
             displacement (str, optional): The displacement map texture file value. Defaults to None.
+            ambientOcclusion (str, optional): The Ambient Occlusion map texture file value. Defaults to None.
         
         Attributes:
             textureMapping (dict): A dictionary mapping texture attributes to their corresponding labels, abbreviations and mappings.
@@ -69,14 +71,17 @@ class Texture(object):
         self.specularRough = specularRough
         self.normal = normal
         self.displacement = displacement
+        self.ambientOcclusion = ambientOcclusion
 
         self.textureMapping = {
-            "baseColor": {"label": "Base Color", "abbreviation": "BC", "mapping": ["basecolor", "base"]},
+            "baseColor": {"label": "Base Color", "abbreviation": "BC", "mapping": ["basecolor", "base", "albedo"]},
             "metalness": {"label": "Metalness", "abbreviation": "M", "mapping": ["metalness", "metallic"]},
             "specularRough": {"label": "Specular Rough", "abbreviation": "SR", "mapping": ["roughness", "specular"]},
             "normal": {"label": "Normal", "abbreviation": "N", "mapping": ["normal"]},
             "displacement": {"label": "Displacement", "abbreviation": "D", "mapping": ["height", "displacement"]},
+            "ambientOcclusion": {"label": "Ambient Occlusion", "abbreviation": "AO", "mapping": ["ao","ambientocclusion","ambientoclussion"]},
         }
+
     
     def createTexture(self):
         """Placeholder method for creating a texture object."""
@@ -114,7 +119,7 @@ class ArnoldTexture(Texture):
     Attributes:
         Inherits all attributes from the `Texture` class.
     """
-    def __init__(self, name="ArnoldTexture", baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None):
+    def __init__(self, name="ArnoldTexture", baseColor=None, metalness=None, specularRough=None, normal=None, displacement=None, ambientOcclusion=None):
         """Initializes a ArnoldTexture with various material properties
 
         Args:
@@ -125,7 +130,7 @@ class ArnoldTexture(Texture):
             normal (str, optional): The displacement texture file value. Defaults to None.
             displacement (str, optional): The base color texture file value. Defaults to None.
         """
-        super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement)
+        super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement, ambientOcclusion=ambientOcclusion)
     
     def createTexture(self, parentNode, path):
         """Creates an Arnold Material Builder node connecting Arnold shader nodes for various texture attributes.
@@ -207,9 +212,8 @@ class KarmaTexture(Texture):
             displacement (str, optional): The base color texture file value. Defaults to None.
             ambientOcclusion (str, optional): The ambient occlusion texture file value. Defaults to None.
         """
-        super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement)
-        self.ambientOcclusion = ambientOcclusion
-        self.textureMapping["ambientOcclusion"] =  {"label": "Ambient Occlusion", "abbreviation": "AO", "mapping": ["ao","ambientocclusion","ambientoclussion"]}
+        super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement, ambientOcclusion=ambientOcclusion)
+
 
     def createTexture(self, parentNode, path):
         """Creates an Karma Material Builder node connecting MaterialX shader nodes for various texture attributes.
@@ -881,7 +885,7 @@ class ktTextureImporter(QtWidgets.QDialog):
             # Loop through files in the directory
             for root, dirs, files in os.walk(folderPath):
                 for filename in files:
-                    if filename.endswith((".exr", ".png")):  # Filter by file type
+                    if filename.endswith((".exr", ".png", ".jpg")):  # Filter by file type
                         match = re.match(regexPattern, filename)
                         if match:
                             objName = match.group("objName") if "objName" in match.groupdict() else None
