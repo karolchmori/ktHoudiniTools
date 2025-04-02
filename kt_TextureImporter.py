@@ -139,7 +139,7 @@ class ArnoldTexture(Texture):
         super().__init__(name=name, baseColor=baseColor, metalness=metalness, specularRough=specularRough, normal=normal, displacement=displacement, ambientOcclusion=ambientOcclusion,
                          transmission=transmission, opacity=opacity)
     
-    def createTexture(self, parentNode, path):
+    def createTexture(self, parentNode, path, imageFormat):
         """Creates an Arnold Material Builder node connecting Arnold shader nodes for various texture attributes.
 
         Args:
@@ -243,7 +243,7 @@ class KarmaTexture(Texture):
                          transmission=transmission, opacity=opacity)
 
 
-    def createTexture(self, parentNode, path):
+    def createTexture(self, parentNode, path, imageFormat):
         """Creates an Karma Material Builder node connecting MaterialX shader nodes for various texture attributes.
 
         Args:
@@ -264,9 +264,11 @@ class KarmaTexture(Texture):
         outMaterialNode = materialBuilderNode.node("Material_Outputs_and_AOVs")
         outDisplacement = materialBuilderNode.node("mtlxdisplacement") 
 
-        imageType = "mtlximage"
-        #mtlximage
-        #mtlxtiledimage
+        if imageFormat == "Image Tile":
+            imageType = "mtlxtiledimage"
+        else:
+            imageType = "mtlximage"
+
 
         def getFullPath(textureName, path):
             return os.path.join(path, textureName) if textureName else None
@@ -651,14 +653,20 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.textureTypeCMB.addItem('Arnold')
         self.textureTypeCMB.addItem('Karma')
         self.textureTypeCMB.setFixedWidth(120)
+        self.imageFormatCMB = QtWidgets.QComboBox()
+        self.imageFormatCMB.setVisible(False)
+        self.imageFormatCMB.addItem('Image 2D')
+        self.imageFormatCMB.addItem('Image Tile')
 
         self.matPathTXT = QtWidgets.QLineEdit()
         self.matPathTXT.setReadOnly(True)
         self.matPathBTN = hou.qt.NodeChooserButton()
 
         self.patternCMB = QtWidgets.QComboBox()
+        self.patternCMB.addItem('@objName_@texName_@texType.ext')
         self.patternCMB.addItem('@objName_@texName_*_@texType_*.@id.ext')
         self.patternCMB.addItem('*_*_*_@objName_*_*_@texName_@texType.ext')
+        self.patternCMB.addItem('@texName_*_@texType.ext')
         self.patternCMB.addItem('@texName_*_@texType_*.@id.ext')
         self.patternCMB.setEditable(True)
         self.patternCMB.lineEdit().installEventFilter(self)
@@ -690,6 +698,7 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.textureTypeLYT = QtWidgets.QHBoxLayout()
         self.textureTypeLYT.addWidget(QtWidgets.QLabel('Texture: '))
         self.textureTypeLYT.addWidget(self.textureTypeCMB)
+        self.textureTypeLYT.addWidget(self.imageFormatCMB)
         self.textureTypeLYT.addWidget(QtWidgets.QLabel(' Material Library: '))
         self.textureTypeLYT.addWidget(self.matPathTXT)
         self.textureTypeLYT.addWidget(self.matPathBTN)
@@ -814,10 +823,11 @@ class ktTextureImporter(QtWidgets.QDialog):
         
         if parentNode:
             folderPath = self.folderPathTXT.text()
+            imageFormat = self.imageFormatCMB.currentText()
             for tex in self.texList:
                 #tex = ktTextureWidget() # type: ktTextureWidget
                 if tex.selectedCB.isChecked():
-                    tex.texture.createTexture(parentNode,folderPath)
+                    tex.texture.createTexture(parentNode,folderPath, imageFormat)
 
             parentNode.layoutChildren()
         else:
@@ -838,6 +848,11 @@ class ktTextureImporter(QtWidgets.QDialog):
 
         This function ensures the displayed textures match the selected type.
         """
+        if self.textureTypeCMB.currentText() == 'Karma':
+            self.imageFormatCMB.setVisible(True)
+        else:
+            self.imageFormatCMB.setVisible(False)
+
         if self.folderPathTXT.text():
             self.loadTextures()
     
