@@ -282,7 +282,7 @@ class KarmaTexture(Texture):
             if self.ambientOcclusion:
                 ambientOcclusionNode = materialBuilderNode.createNode(imageType, f"{self.name}_AO")
                 ambientOcclusionNode.parm("file").set(getFullPath(self.ambientOcclusion, path))
-                ambientOcclusionNode.parm("signature").set("color3")
+                ambientOcclusionNode.parm("signature").set("default")
                 multiplyNode = materialBuilderNode.createNode("mtlxmultiply", f"{self.name}_Multi")
                 multiplyNode.setNamedInput("in1", baseColorNode, "out")
                 multiplyNode.setNamedInput("in2", ambientOcclusionNode, "out")
@@ -315,6 +315,7 @@ class KarmaTexture(Texture):
         if self.displacement:
             displacementNode = materialBuilderNode.createNode(imageType, f"{self.name}_D")
             displacementNode.parm("file").set(getFullPath(self.displacement, path))
+            displacementNode.parm("signature").set("default")
             outDisplacement.setNamedInput("displacement", displacementNode, "out")
 
         # Organize layout
