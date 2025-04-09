@@ -200,7 +200,8 @@ class ArnoldTexture(Texture):
             displacementNode = materialBuilderNode.createNode("arnold::image", f"{self.name}_D")
             displacementNode.parm("filename").set(getFullPath(self.displacement, path))
 
-            rangeNode = materialBuilderNode.createNode("arnold::range", f"{self.name}_RNG") 
+            rangeNode = materialBuilderNode.createNode("arnold::range", f"{self.name}_RNG")
+            rangeNode.parm("output_max").set(0.001) 
             rangeNode.setNamedInput("input", displacementNode, "r")
             outMaterialNode.setNamedInput("displacement", rangeNode, "r")
         
