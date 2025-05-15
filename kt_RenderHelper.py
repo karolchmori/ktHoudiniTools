@@ -54,22 +54,21 @@ def getParamNodes(nodeList):
     
     return paramList
 
+def getHoudiniMainWindow():
+    """
+    Retrieves the main Houdini window.
 
-class kt_NodeSearcher(QtWidgets.QDialog):
-    def __init__(self):
-        super(kt_NodeSearcher, self).__init__()
+    Returns:
+        QWidget: The main Houdini Qt window.
+    """
+    return hou.qt.mainWindow()
 
-        self.nodeList = getAllNodes(parentNode)
-        self.paramList = getParamNodes(self.nodeList)
-
-
-        for param in self.paramList:
-            param.showInformation()
-
-        # START HERE
+class kt_RenderHelper(QtWidgets.QDialog):
+    def __init__(self, parent=getHoudiniMainWindow()):
+        super(kt_RenderHelper, self).__init__(parent)
 
         self.setWindowTitle('kt_RenderHelper')
-        self.setMinimumWidth(400)
+        self.setMinimumWidth(700)
         self.setMinimumHeight(400)
         self.setWindowFlags(self.windowFlags() ^ QtCore.Qt.WindowContextHelpButtonHint)
 
@@ -85,11 +84,18 @@ class kt_NodeSearcher(QtWidgets.QDialog):
         self.nodeParentBTN = hou.qt.NodeChooserButton()
 
         self.filterCMB = QtWidgets.QComboBox()
+        self.filterCMB.setFixedWidth(600)
+        self.filterCMB.addItem('')
         self.filterCMB.addItem('$HIP')
         self.filterCMB.addItem('$JOB')
         self.filterCMB.setEditable(True)
 
         self.invertFilterCB = QtWidgets.QCheckBox()
+
+        self.nodeTBL = QtWidgets.QTableWidget()
+        self.nodeTBL.setRowCount(0)
+        self.nodeTBL.setColumnCount(5)
+        self.nodeTBL.setHorizontalHeaderLabels(["Name","Node","Type","Value","Path"])
 
     def createLayout(self):
         """Function that creates all the layouts and add widgets"""
@@ -97,36 +103,56 @@ class kt_NodeSearcher(QtWidgets.QDialog):
 
         """ Header """
         self.nodeLYT = QtWidgets.QHBoxLayout()
-        self.nodeLYT.addWidget(QtWidgets.QLabel(' Parent: '))
+        self.nodeLYT.addWidget(QtWidgets.QLabel('Parent: '))
         self.nodeLYT.addWidget(self.nodeParentTXT)
         self.nodeLYT.addWidget(self.nodeParentBTN)
 
         """ Pattern """
         self.filterLYT = QtWidgets.QHBoxLayout()
-        filterLBL = QtWidgets.QLabel('Pattern: ')
-        filterLBL.setFixedWidth(60)
+        filterLBL = QtWidgets.QLabel('Filter: ')
         self.filterLYT.addWidget(filterLBL)
         self.filterLYT.addWidget(self.filterCMB)
+        self.filterLYT.addStretch()
         self.filterLYT.addWidget(QtWidgets.QLabel(' Invert: '))
         self.filterLYT.addWidget(self.invertFilterCB)
-
+        
         self.mainLayout.addLayout(self.nodeLYT)
         self.mainLayout.addLayout(self.filterLYT)
+        self.mainLayout.addWidget(self.nodeTBL)
 
     def createConnection(self):
         self.nodeParentBTN.nodeSelected.connect(self.onClick_nodeParentBTN)
 
     def onClick_nodeParentBTN(self, node):
+        # Update the parent node
         if node:
             self.nodeParentTXT.setText(str(node.path()))
 
+            # If loaded update table
+            self.nodeList = getAllNodes(parentNode)
+            self.paramList = getParamNodes(self.nodeList)
+
+            # Add to table
+            for param in self.paramList:
+                #param.showInformation()
+                rowPosition = self.nodeTBL.rowCount()
+                self.nodeTBL.insertRow(rowPosition)
+                variables = [param.paramName, param.nodeType, param.paramType, param.paramValue, param.nodePath]
+
+                for i in range(self.nodeTBL.columnCount()):
+                    item = QtWidgets.QTableWidgetItem(variables[i]) # type QtWidgets.QTableWidgetItem
+                    item.setFlags(item.flags() & ~QtCore.Qt.ItemFlag.ItemIsEditable)
+                    self.nodeTBL.setItem(rowPosition , i, item)
+
+            self.nodeTBL.resizeColumnsToContents()
+
 
 try:
-    kt_NodeSearcher.close()
-    kt_NodeSearcher.deleteLater()
+    kt_RenderHelper.close()
+    kt_RenderHelper.deleteLater()
 except:
     pass
 
-ktNodeSearcher = kt_NodeSearcher()
-ktNodeSearcher.show()    
+ktRenderHelper = kt_RenderHelper()
+ktRenderHelper.show()    
     
