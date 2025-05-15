@@ -3,8 +3,6 @@ from PySide2 import QtCore
 from PySide2 import QtWidgets
 from PySide2 import QtGui
 
-parentNode = hou.node('/stage')
-
 class Parameter(object):
     def __init__(self, nodePath, nodeType, paramName, paramType, paramValue):
         self.nodePath = nodePath
@@ -180,9 +178,9 @@ class kt_RenderHelper(QtWidgets.QDialog):
         # Update the parent node
         if node:
             self.nodeParentTXT.setText(str(node.path()))
-
+            self.clearTableView(self.model)
             # If loaded update table
-            self.nodeList = getAllNodes(parentNode)
+            self.nodeList = getAllNodes(node)
             self.paramList = getParamNodes(self.nodeList)
 
             items = []
@@ -203,7 +201,7 @@ class kt_RenderHelper(QtWidgets.QDialog):
         sourceIndex = self.proxyModel.mapToSource(index)
         if sourceIndex.column() == 4:
             value = sourceIndex.data()
-            print(f"Double-clicked column 4 value: {value}")
+            #print(f"Double-clicked column 4 value: {value}")
             node = hou.node(value)
             if node:
                 # Select the node
@@ -216,6 +214,12 @@ class kt_RenderHelper(QtWidgets.QDialog):
                         pane.setCurrentNode(node)
                         pane.bringToFront()
                         break
+    
+    def clearTableView(self, model):
+        for row in reversed(range(model.rowCount())):
+            model.removeRow(row)
+
+
 
 try:
     kt_RenderHelper.close()
