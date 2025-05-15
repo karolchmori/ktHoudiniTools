@@ -662,11 +662,11 @@ class ktTextureImporter(QtWidgets.QDialog):
         self.matPathBTN = hou.qt.NodeChooserButton()
 
         self.patternCMB = QtWidgets.QComboBox()
-        self.patternCMB.addItem('@objName_@texName_@texType.ext')
         self.patternCMB.addItem('@objName_@texName_*_@texType_*.@id.ext')
         self.patternCMB.addItem('*_*_*_@objName_*_*_@texName_@texType.ext')
-        self.patternCMB.addItem('@texName_*_@texType.ext')
         self.patternCMB.addItem('@texName_*_@texType_*.@id.ext')
+        self.patternCMB.addItem('@objName_@texName_@texType.ext')
+        self.patternCMB.addItem('@texName_*_@texType.ext')
         self.patternCMB.setEditable(True)
         self.patternCMB.lineEdit().installEventFilter(self)
         self.patternCMB.setStyleSheet("""
