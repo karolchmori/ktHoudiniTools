@@ -936,6 +936,7 @@ class ktTextureImporter(QtWidgets.QDialog):
                             textureId = match.group("id") if "id" in match.groupdict() else None
 
                             finalName = f"{objName}_{texName}" if objName else texName
+                            finalName = finalName.replace(' ', '_') # FIX: Spaces could create problem when searching a node
 
                             # Create texture object if not exists
                             if finalName not in textures:
