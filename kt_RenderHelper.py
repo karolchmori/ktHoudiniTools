@@ -63,6 +63,42 @@ def getHoudiniMainWindow():
     """
     return hou.qt.mainWindow()
 
+
+class InvertibleFilterProxyModel(QtCore.QSortFilterProxyModel):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._invert = False
+        self._filterText = ""
+
+    def setInvert(self, invert: bool):
+        self._invert = invert
+        self.invalidateFilter()  # refresh filtering
+
+    def setFilterText(self, text: str):
+        self._filterText = text.lower()
+        self.invalidateFilter()
+
+    def filterAcceptsRow(self, source_row, source_parent):
+        # If no filter text, accept everything
+        if not self._filterText:
+            return True if not self._invert else False
+
+        model = self.sourceModel()
+        column_count = model.columnCount()
+
+        # Check if any column contains the filter text (case insensitive)
+        matched = False
+        for column in range(column_count):
+            index = model.index(source_row, column, source_parent)
+            data = model.data(index)
+            if data and self._filterText in str(data).lower():
+                matched = True
+                break
+
+        # Return True if matched and not inverted; or if NOT matched and inverted
+        return matched != self._invert  # XOR logic
+
+
 class kt_RenderHelper(QtWidgets.QDialog):
     def __init__(self, parent=getHoudiniMainWindow()):
         super(kt_RenderHelper, self).__init__(parent)
@@ -95,25 +131,14 @@ class kt_RenderHelper(QtWidgets.QDialog):
 
         self.invertFilterCB = QtWidgets.QCheckBox()
 
-        """
-        # Table with results
-        self.nodeTBL = QtWidgets.QTableWidget()
-        self.nodeTBL.setRowCount(0)
-        self.nodeTBL.setColumnCount(5)
-        self.nodeTBL.setColumnWidth(0, 150)
-        self.nodeTBL.setColumnWidth(1, 140)
-        self.nodeTBL.setColumnWidth(2, 60)
-        self.nodeTBL.setColumnWidth(3, 200)
-        self.nodeTBL.setColumnWidth(4, 200)
-        self.nodeTBL.setHorizontalHeaderLabels(["Name","Node","Type","Value","Path"])
-        """
         self.nodeTBL = QtWidgets.QTableView()
         self.model = QtGui.QStandardItemModel()
         self.model.setHorizontalHeaderLabels(["Name", "Node", "Type", "Value", "Path"])
 
 
         # Proxy model for sorting/filtering
-        self.proxyModel = QtCore.QSortFilterProxyModel()
+        #self.proxyModel = QtCore.QSortFilterProxyModel()
+        self.proxyModel = InvertibleFilterProxyModel()
         self.proxyModel.setSourceModel(self.model)
         self.proxyModel.setFilterCaseSensitivity(QtCore.Qt.CaseInsensitive)
         self.proxyModel.setFilterKeyColumn(-1)  # -1 means filter all columns
@@ -150,8 +175,9 @@ class kt_RenderHelper(QtWidgets.QDialog):
         self.nodeParentBTN.nodeSelected.connect(self.onClick_nodeParentBTN)
         #self.nodeTBL.cellDoubleClicked.connect(self.onCellDoubleClicked_nodeTBL)
         self.nodeTBL.doubleClicked.connect(self.onCellDoubleClicked_nodeTBL)
-        self.filterCMB.lineEdit().textChanged.connect(self.proxyModel.setFilterFixedString)
-        self.invertFilterCB.stateChanged.connect(self.onInvertFilterChanged)
+        #self.filterCMB.lineEdit().textChanged.connect(self.proxyModel.setFilterFixedString)
+        self.filterCMB.lineEdit().textChanged.connect(self.proxyModel.setFilterText)
+        self.invertFilterCB.stateChanged.connect(lambda _: self.proxyModel.setInvert(self.invertFilterCB.isChecked()))
 
     def onClick_nodeParentBTN(self, node):
         # Update the parent node
@@ -176,34 +202,14 @@ class kt_RenderHelper(QtWidgets.QDialog):
 
                 self.model.appendRow(items)
 
-                """
-                #param.showInformation()
-                rowPosition = self.nodeTBL.rowCount()
-                self.nodeTBL.insertRow(rowPosition)
-                variables = [param.paramName, param.nodeType, param.paramType, param.paramValue, param.nodePath]
-
-                for i in range(self.nodeTBL.columnCount()):
-                    item = QtWidgets.QTableWidgetItem(variables[i]) # type QtWidgets.QTableWidgetItem
-                    item.setToolTip(variables[i])
-                    item.setFlags(item.flags() & ~QtCore.Qt.ItemFlag.ItemIsEditable)
-                    self.nodeTBL.setItem(rowPosition , i, item)
-                """
                 
-
-
     def onCellDoubleClicked_nodeTBL(self, index: QtCore.QModelIndex):
         sourceIndex = self.proxyModel.mapToSource(index)
         if sourceIndex.column() == 4:
             value = sourceIndex.data()
             print(f"Double-clicked column 4 value: {value}")
 
-    """
-    def onCellDoubleClicked_nodeTBL(self, row, column):
-        if column == 4:  # Only for column 4, prints the path
-            item = self.nodeTBL.item(row, column)
-            if item:
-                print(f"Double-clicked value: {item.text()}")
-    """
+
 
 try:
     kt_RenderHelper.close()
