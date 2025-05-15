@@ -120,7 +120,7 @@ class kt_RenderHelper(QtWidgets.QDialog):
         self.nodeParentBTN = hou.qt.NodeChooserButton()
 
         self.filterCMB = QtWidgets.QComboBox()
-        self.filterCMB.setFixedWidth(400)
+        self.filterCMB.setFixedWidth(420)
         self.filterCMB.addItem('')
         self.filterCMB.addItem('$HIP')
         self.filterCMB.addItem('$JOB')
@@ -137,7 +137,6 @@ class kt_RenderHelper(QtWidgets.QDialog):
 
 
         # Proxy model for sorting/filtering
-        #self.proxyModel = QtCore.QSortFilterProxyModel()
         self.proxyModel = InvertibleFilterProxyModel()
         self.proxyModel.setSourceModel(self.model)
         self.proxyModel.setFilterCaseSensitivity(QtCore.Qt.CaseInsensitive)
@@ -173,9 +172,7 @@ class kt_RenderHelper(QtWidgets.QDialog):
 
     def createConnection(self):
         self.nodeParentBTN.nodeSelected.connect(self.onClick_nodeParentBTN)
-        #self.nodeTBL.cellDoubleClicked.connect(self.onCellDoubleClicked_nodeTBL)
         self.nodeTBL.doubleClicked.connect(self.onCellDoubleClicked_nodeTBL)
-        #self.filterCMB.lineEdit().textChanged.connect(self.proxyModel.setFilterFixedString)
         self.filterCMB.lineEdit().textChanged.connect(self.proxyModel.setFilterText)
         self.invertFilterCB.stateChanged.connect(lambda _: self.proxyModel.setInvert(self.invertFilterCB.isChecked()))
 
@@ -202,14 +199,23 @@ class kt_RenderHelper(QtWidgets.QDialog):
 
                 self.model.appendRow(items)
 
-                
     def onCellDoubleClicked_nodeTBL(self, index: QtCore.QModelIndex):
         sourceIndex = self.proxyModel.mapToSource(index)
         if sourceIndex.column() == 4:
             value = sourceIndex.data()
             print(f"Double-clicked column 4 value: {value}")
-
-
+            node = hou.node(value)
+            if node:
+                # Select the node
+                node.setSelected(True, clear_all_selected=True)
+                
+                # Focus on the node in the network editor pane
+                # Find the network editor pane that shows this node's context
+                for pane in hou.ui.paneTabs():
+                    if isinstance(pane, hou.NetworkEditor) and pane.pwd() == node.parent():
+                        pane.setCurrentNode(node)
+                        pane.bringToFront()
+                        break
 
 try:
     kt_RenderHelper.close()
