@@ -68,8 +68,8 @@ class kt_RenderHelper(QtWidgets.QDialog):
         super(kt_RenderHelper, self).__init__(parent)
 
         self.setWindowTitle('kt_RenderHelper')
-        self.setMinimumWidth(700)
-        self.setMinimumHeight(400)
+        self.setMinimumWidth(850)
+        self.setMinimumHeight(450)
         self.setWindowFlags(self.windowFlags() ^ QtCore.Qt.WindowContextHelpButtonHint)
 
 
@@ -84,18 +84,48 @@ class kt_RenderHelper(QtWidgets.QDialog):
         self.nodeParentBTN = hou.qt.NodeChooserButton()
 
         self.filterCMB = QtWidgets.QComboBox()
-        self.filterCMB.setFixedWidth(600)
+        self.filterCMB.setFixedWidth(400)
         self.filterCMB.addItem('')
         self.filterCMB.addItem('$HIP')
         self.filterCMB.addItem('$JOB')
         self.filterCMB.setEditable(True)
+        self.filterCMB.setStyleSheet("""
+            QComboBox { padding-right: 20px; }
+        """)
 
         self.invertFilterCB = QtWidgets.QCheckBox()
 
+        """
+        # Table with results
         self.nodeTBL = QtWidgets.QTableWidget()
         self.nodeTBL.setRowCount(0)
         self.nodeTBL.setColumnCount(5)
+        self.nodeTBL.setColumnWidth(0, 150)
+        self.nodeTBL.setColumnWidth(1, 140)
+        self.nodeTBL.setColumnWidth(2, 60)
+        self.nodeTBL.setColumnWidth(3, 200)
+        self.nodeTBL.setColumnWidth(4, 200)
         self.nodeTBL.setHorizontalHeaderLabels(["Name","Node","Type","Value","Path"])
+        """
+        self.nodeTBL = QtWidgets.QTableView()
+        self.model = QtGui.QStandardItemModel()
+        self.model.setHorizontalHeaderLabels(["Name", "Node", "Type", "Value", "Path"])
+
+
+        # Proxy model for sorting/filtering
+        self.proxyModel = QtCore.QSortFilterProxyModel()
+        self.proxyModel.setSourceModel(self.model)
+        self.proxyModel.setFilterCaseSensitivity(QtCore.Qt.CaseInsensitive)
+        self.proxyModel.setFilterKeyColumn(-1)  # -1 means filter all columns
+
+        self.nodeTBL.setModel(self.proxyModel)
+        self.nodeTBL.verticalHeader().setVisible(False)
+        self.nodeTBL.setColumnWidth(0, 150)
+        self.nodeTBL.setColumnWidth(1, 140)
+        self.nodeTBL.setColumnWidth(2, 60)
+        self.nodeTBL.setColumnWidth(3, 240)
+        self.nodeTBL.setColumnWidth(4, 200)
+        self.nodeTBL.setSortingEnabled(True)
 
     def createLayout(self):
         """Function that creates all the layouts and add widgets"""
@@ -106,22 +136,22 @@ class kt_RenderHelper(QtWidgets.QDialog):
         self.nodeLYT.addWidget(QtWidgets.QLabel('Parent: '))
         self.nodeLYT.addWidget(self.nodeParentTXT)
         self.nodeLYT.addWidget(self.nodeParentBTN)
-
-        """ Pattern """
-        self.filterLYT = QtWidgets.QHBoxLayout()
         filterLBL = QtWidgets.QLabel('Filter: ')
-        self.filterLYT.addWidget(filterLBL)
-        self.filterLYT.addWidget(self.filterCMB)
-        self.filterLYT.addStretch()
-        self.filterLYT.addWidget(QtWidgets.QLabel(' Invert: '))
-        self.filterLYT.addWidget(self.invertFilterCB)
-        
+        self.nodeLYT.addWidget(filterLBL)
+        self.nodeLYT.addWidget(self.filterCMB)
+        self.nodeLYT.addStretch()
+        self.nodeLYT.addWidget(QtWidgets.QLabel(' Invert: '))
+        self.nodeLYT.addWidget(self.invertFilterCB)
+
         self.mainLayout.addLayout(self.nodeLYT)
-        self.mainLayout.addLayout(self.filterLYT)
         self.mainLayout.addWidget(self.nodeTBL)
 
     def createConnection(self):
         self.nodeParentBTN.nodeSelected.connect(self.onClick_nodeParentBTN)
+        #self.nodeTBL.cellDoubleClicked.connect(self.onCellDoubleClicked_nodeTBL)
+        self.nodeTBL.doubleClicked.connect(self.onCellDoubleClicked_nodeTBL)
+        self.filterCMB.lineEdit().textChanged.connect(self.proxyModel.setFilterFixedString)
+        self.invertFilterCB.stateChanged.connect(self.onInvertFilterChanged)
 
     def onClick_nodeParentBTN(self, node):
         # Update the parent node
@@ -132,8 +162,21 @@ class kt_RenderHelper(QtWidgets.QDialog):
             self.nodeList = getAllNodes(parentNode)
             self.paramList = getParamNodes(self.nodeList)
 
+            items = []
             # Add to table
             for param in self.paramList:
+                variables = [param.paramName, param.nodeType, param.paramType, param.paramValue, param.nodePath]
+
+                items = []
+                for value in variables:
+                    item = QtGui.QStandardItem(value)
+                    item.setToolTip(value)
+                    item.setEditable(False)
+                    items.append(item)
+
+                self.model.appendRow(items)
+
+                """
                 #param.showInformation()
                 rowPosition = self.nodeTBL.rowCount()
                 self.nodeTBL.insertRow(rowPosition)
@@ -141,11 +184,26 @@ class kt_RenderHelper(QtWidgets.QDialog):
 
                 for i in range(self.nodeTBL.columnCount()):
                     item = QtWidgets.QTableWidgetItem(variables[i]) # type QtWidgets.QTableWidgetItem
+                    item.setToolTip(variables[i])
                     item.setFlags(item.flags() & ~QtCore.Qt.ItemFlag.ItemIsEditable)
                     self.nodeTBL.setItem(rowPosition , i, item)
+                """
+                
 
-            self.nodeTBL.resizeColumnsToContents()
 
+    def onCellDoubleClicked_nodeTBL(self, index: QtCore.QModelIndex):
+        sourceIndex = self.proxyModel.mapToSource(index)
+        if sourceIndex.column() == 4:
+            value = sourceIndex.data()
+            print(f"Double-clicked column 4 value: {value}")
+
+    """
+    def onCellDoubleClicked_nodeTBL(self, row, column):
+        if column == 4:  # Only for column 4, prints the path
+            item = self.nodeTBL.item(row, column)
+            if item:
+                print(f"Double-clicked value: {item.text()}")
+    """
 
 try:
     kt_RenderHelper.close()
