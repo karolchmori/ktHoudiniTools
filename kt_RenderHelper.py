@@ -44,7 +44,7 @@ def getParamNodes(nodeList):
             if paramType.name() == 'String':
                 stringType = param.parmTemplate().stringType()
                 if stringType.name() == 'FileReference':
-                    paramValue = param.eval()
+                    paramValue = param.unexpandedString()
                     if paramValue:
                         newParam = Parameter(nodePath=path, nodeType= nodeType, paramName=paramName, 
                                              paramType=paramType.name(), paramValue=paramValue)
