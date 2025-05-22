@@ -242,16 +242,14 @@ class FilterableTable(QtWidgets.QWidget):
 
 #region Blocks
 class FileCheckBLK(ExpandableBlock):
-    def __init__(self):
+    def __init__(self, nodeList):
+        self.nodeList = nodeList
+        self.fileNodeParameters = []
+        self.counters = []
         super().__init__("File Checker")
 
-        self.fileNodeParameters = []
-        self.nodeList = []
-        self.counters = []
-
     def getData(self):
-        node = hou.node("/stage")
-        self.nodeList = getAllNodes(node)
+    
         self.fileNodeParameters = self.getFileParam(self.nodeList)
         self.counters = self.groupData(self.fileNodeParameters)
 
@@ -383,7 +381,8 @@ class FileCheckBLK(ExpandableBlock):
 
 
 class CameraCheckBLK(ExpandableBlock):
-    def __init__(self):
+    def __init__(self, nodeList):
+        self.nodeList = nodeList
         super().__init__("Camera")
 
     def createWidgets(self):
@@ -406,7 +405,8 @@ class CameraCheckBLK(ExpandableBlock):
 
 
 class RenderVariablesBLK(ExpandableBlock):
-    def __init__(self):
+    def __init__(self, nodeList):
+        self.nodeList = nodeList
         super().__init__("Render VAR")
 
     def createWidgets(self):
@@ -428,7 +428,8 @@ class RenderVariablesBLK(ExpandableBlock):
         self.refreshBTN.clicked.connect(lambda: self.expandedLabel.setText("Leads refreshed!"))
 
 class LightInformationBLK(ExpandableBlock):
-    def __init__(self):
+    def __init__(self, nodeList):
+        self.nodeList = nodeList
         super().__init__("Lights")
 
     def createWidgets(self):
@@ -450,7 +451,8 @@ class LightInformationBLK(ExpandableBlock):
         self.refreshBTN.clicked.connect(lambda: self.expandedLabel.setText("Leads refreshed!"))
 
 class RenderGeometryPrimitivesBLK(ExpandableBlock):
-    def __init__(self):
+    def __init__(self, nodeList):
+        self.nodeList = nodeList
         super().__init__("Render Geometry (Primitives)")
 
     def createWidgets(self):
@@ -473,8 +475,10 @@ class RenderGeometryPrimitivesBLK(ExpandableBlock):
 
 
 class RenderGeometryVisibilityBLK(ExpandableBlock):
-    def __init__(self):
-        super().__init__("Render Geometry (Visibility)")
+    def __init__(self, nodeList):
+        self.nodeList = nodeList
+
+        super().__init__("Render Geometry (Visibility)")        
 
     def createWidgets(self):
         self.label = QtWidgets.QLabel("Render Visibility HERE")
@@ -519,23 +523,28 @@ class kt_RenderHelper(QtWidgets.QDialog):
         #self.setWindowFlags(QtCore.Qt.Tool | QtCore.Qt.Window)
 
         self.expandableBlocks = []
+        self.allNodes = []
+        self.getData()
         
         self.createWidgets()
         self.createLayout()
         self.createConnection()
-    
+
+    def getData(self):
+        node = hou.node("/stage")
+        self.allNodes = getAllNodes(node)
     
     def createWidgets(self):
         self.tempLBL = QtWidgets.QLabel(' ')
         self.refreshBTN = QtWidgets.QPushButton("Refresh")
 
 
-        self.fileCheckerBLK = FileCheckBLK()
-        self.cameraBLK = CameraCheckBLK()
-        self.renderVarBLK = RenderVariablesBLK()
-        self.lightInfoBLK = LightInformationBLK()
-        self.renderGeoPrimitivesBLK = RenderGeometryPrimitivesBLK()
-        self.renderGeoVisibilityBLK = RenderGeometryVisibilityBLK()
+        self.fileCheckerBLK = FileCheckBLK(self.allNodes)
+        self.cameraBLK = CameraCheckBLK(self.allNodes)
+        self.renderVarBLK = RenderVariablesBLK(self.allNodes)
+        self.lightInfoBLK = LightInformationBLK(self.allNodes)
+        self.renderGeoPrimitivesBLK = RenderGeometryPrimitivesBLK(self.allNodes)
+        self.renderGeoVisibilityBLK = RenderGeometryVisibilityBLK(self.allNodes)
 
         self.expandableBlocks.append(self.fileCheckerBLK)
         self.expandableBlocks.append(self.cameraBLK)
@@ -583,10 +592,11 @@ class kt_RenderHelper(QtWidgets.QDialog):
         super().closeEvent(event)
     
     def refreshAllBlocks(self):
-        for block in self.expandableBlocks:
-            block.refreshData()
+        self.getData()
 
-                
+        for block in self.expandableBlocks:
+            block.nodeList = self.allNodes
+            block.refreshData()                
 
     
 #endregion
