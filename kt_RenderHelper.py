@@ -5,6 +5,8 @@ from PySide2 import QtGui
 
 global _ktRenderHelperInstance
 
+#region Objects
+
 class FileParameter(object):
     def __init__(self, nodePath, nodeName, fileLabel, fileValue):
         self.nodePath = nodePath
@@ -19,16 +21,7 @@ class FileParameter(object):
             print(f"{attribute}: {value}")
         print("-----------------------------------------")
 
-def getAllNodes(node, nodeList = None, level = 0):
-    if nodeList is None:
-        nodeList = []
-    #print(" " * level + node.name())
-    nodeList.append(node.path())
 
-    for child in node.children():
-        getAllNodes(child, nodeList, level + 1)
-
-    return nodeList
 
 class ExpandableBlock(QtWidgets.QGroupBox):
     def __init__(self, title):
@@ -43,7 +36,6 @@ class ExpandableBlock(QtWidgets.QGroupBox):
         self.mainLYT.addWidget(self.contentWDT)
         self.mainLYT.addWidget(self.expandBTN)
         self.setLayout(self.mainLYT)
-
 
         self.createWidgets()
         self.createLayout()
@@ -97,6 +89,21 @@ class ExpandableBlock(QtWidgets.QGroupBox):
             self.expandedDialog.close()
             self.expandedDialog = None
 
+#endregion
+
+def getAllNodes(node, nodeList = None, level = 0):
+    if nodeList is None:
+        nodeList = []
+    #print(" " * level + node.name())
+    nodeList.append(node.path())
+
+    for child in node.children():
+        getAllNodes(child, nodeList, level + 1)
+
+    return nodeList
+
+
+#region Table 
 class InvertibleFilterProxyModel(QtCore.QSortFilterProxyModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -207,7 +214,9 @@ class FilterableTable(QtWidgets.QWidget):
     def getProxyModel(self):
         return self.proxyModel
 
+#endregion
 
+#region Blocks
 class FileCheckBLK(ExpandableBlock):
     def __init__(self):
         super().__init__("File Checker")
@@ -425,6 +434,10 @@ class RenderGeometryVisibilityBLK(ExpandableBlock):
     def createConnectionExpanded(self):
         self.refreshBTN.clicked.connect(lambda: self.expandedLabel.setText("Leads refreshed!"))
 
+#endregion
+
+#region Main
+
 def getHoudiniMainWindow():
     """
     Retrieves the main Houdini window.
@@ -504,7 +517,7 @@ class kt_RenderHelper(QtWidgets.QDialog):
         super().closeEvent(event)
 
     
-
+#endregion
 
 try:
     kt_RenderHelper.close()
@@ -514,6 +527,7 @@ except:
 
 ktRenderHelper = kt_RenderHelper()
 ktRenderHelper.show()   
+
 
 
 """
