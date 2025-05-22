@@ -44,6 +44,22 @@ class LightParameter(object):
             print(f"{attribute}: {value}")
         print("-----------------------------------------")
 
+class RenderVarParameter(object):
+    def __init__(self, nodePath, nodeName, dataType = None, sourceName= None, sourceType= None, aovFormat= None):
+        self.nodePath = nodePath
+        self.nodeName = nodeName
+        self.dataType = dataType
+        self.sourceName = sourceName
+        self.sourceType = sourceType
+        self.aovFormat = aovFormat
+
+    def showInformation(self):
+        """ Prints all attributes of the texture object except the `textureMapping` dictionary."""
+        print("-----------------------------------------")
+        for attribute, value in vars(self).items():  # Iterate over the instance's attributes
+            print(f"{attribute}: {value}")
+        print("-----------------------------------------")
+
 
 class ExpandableBlock(QtWidgets.QGroupBox):
     def __init__(self, title):
@@ -124,6 +140,24 @@ class ExpandableBlock(QtWidgets.QGroupBox):
         if self.expandedDialog is not None:
             self.expandedDialog.close()
             self.expandedDialog = None
+    
+    def handleDoubleClickToSelectNode(self, tableWidget, columnIndex):
+        """
+        Common behavior for handling double-clicks on a specific column in the table to jump to the Houdini node.
+        """
+        def onDoubleClick(index: QtCore.QModelIndex):
+            sourceIndex = tableWidget.proxyModel.mapToSource(index)
+            if sourceIndex.column() == columnIndex:
+                value = sourceIndex.data()
+                node = hou.node(value)
+                if node:
+                    node.setSelected(True, clear_all_selected=True)
+                    for pane in hou.ui.paneTabs():
+                        if isinstance(pane, hou.NetworkEditor) and pane.pwd() == node.parent():
+                            pane.setCurrentNode(node)
+                            break
+
+        return onDoubleClick
     
     def getData(self):
         """Override"""
@@ -281,6 +315,7 @@ class FileCheckBLK(ExpandableBlock):
         for i in range(3):
             item = QtWidgets.QTableWidgetItem(str(self.counters[i])) # type QtWidgets.QTableWidgetItem
             item.setFlags(item.flags() & ~QtCore.Qt.ItemFlag.ItemIsEditable)
+            item.setTextAlignment(QtCore.Qt.AlignCenter)
             self.summaryTBL.setItem(0 , i, item)
 
             
@@ -306,10 +341,10 @@ class FileCheckBLK(ExpandableBlock):
         self.summaryTBL.verticalHeader().setVisible(False)
         self.summaryTBL.resizeColumnsToContents()
         self.summaryTBL.resizeRowsToContents()
-        self.summaryTBL.setColumnWidth(0, 80)
-        self.summaryTBL.setColumnWidth(1, 80)
+        self.summaryTBL.setColumnWidth(0, 40)
+        self.summaryTBL.setColumnWidth(1, 40)
         self.summaryTBL.setColumnWidth(2, 80)
-        self.summaryTBL.setFixedSize(250,65)
+        self.summaryTBL.setFixedSize(190,65)
         self.summaryTBL.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
 
         self.getData()
@@ -341,7 +376,8 @@ class FileCheckBLK(ExpandableBlock):
         layout.addWidget(self.fileNodeTBL)
 
     def createConnectionExpanded(self):
-        self.fileNodeTBL.table.doubleClicked.connect(self.onCellDoubleClicked_nodeTBL)
+        lastColumn = self.fileNodeTBL.model.columnCount()-1
+        self.fileNodeTBL.table.doubleClicked.connect(self.handleDoubleClickToSelectNode(self.fileNodeTBL, lastColumn))
 
     def loadTable(self, data):
         if data:
@@ -358,25 +394,6 @@ class FileCheckBLK(ExpandableBlock):
                     items.append(item)
 
                 self.fileNodeTBL.model.appendRow(items)
-
-    def onCellDoubleClicked_nodeTBL(self, index: QtCore.QModelIndex):
-        sourceIndex = self.fileNodeTBL.proxyModel.mapToSource(index)
-        if sourceIndex.column() == 3:
-            value = sourceIndex.data()
-            #print(f"Double-clicked column 3 value: {value}")
-            node = hou.node(value)
-            if node:
-                # Select the node
-                node.setSelected(True, clear_all_selected=True)
-                
-                # Focus on the node in the network editor pane
-                # Find the network editor pane that shows this node's context
-                for pane in hou.ui.paneTabs():
-                    if isinstance(pane, hou.NetworkEditor) and pane.pwd() == node.parent():
-                        pane.setCurrentNode(node)
-                        #pane.bringToFront()
-                        #pane.show()
-                        break
     
     def getFileParam(self, nodeList):
         paramList = []
@@ -429,25 +446,116 @@ class CameraCheckBLK(ExpandableBlock):
 class RenderVariablesBLK(ExpandableBlock):
     def __init__(self, nodeList):
         self.nodeList = nodeList
+        self.renderVarNodeParameters = []
+
         super().__init__("Render VAR")
+    
+    def getData(self):
+    
+        self.renderVarNodeParameters = self.getVarParam(self.nodeList)
+
+        self.summaryTBL.setRowCount(0)
+
+        for var in self.renderVarNodeParameters:
+            rowPosition = self.summaryTBL.rowCount()
+            self.summaryTBL.insertRow(rowPosition)
+
+            values = [var.nodeName, var.dataType, var.sourceName, var.sourceType, var.aovFormat]
+
+            for col, val in enumerate(values):
+
+                item = QtWidgets.QTableWidgetItem(val)
+                item.setFlags(item.flags() & ~QtCore.Qt.ItemIsEditable)
+                self.summaryTBL.setItem(rowPosition, col, item)
 
     def createWidgets(self):
-        self.label = QtWidgets.QLabel("Table INSERT")
+        self.summaryTBL = QtWidgets.QTableWidget()
+        self.summaryTBL.setColumnCount(5)
+        self.summaryTBL.setHorizontalHeaderLabels(["Node", "Data Type", "Source Name", "Source Type","Format"])
+        self.summaryTBL.setSortingEnabled(False)
+        self.summaryTBL.verticalHeader().setVisible(False)
+        self.summaryTBL.resizeColumnsToContents()
+        self.summaryTBL.resizeRowsToContents()
+        self.summaryTBL.setColumnWidth(0, 100)
+        self.summaryTBL.setMinimumWidth(540)
+        self.summaryTBL.setMinimumHeight(250)
+        self.summaryTBL.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+
+        self.getData()
 
     def createLayout(self):
-        self.contentLYT.addWidget(self.label)
+        self.contentLYT.addWidget(self.summaryTBL, alignment=QtCore.Qt.AlignHCenter)
 
     def createWidgetsExpanded(self):
-        self.expandedLabel = QtWidgets.QLabel("Lead details and conversion funnel")
-        self.refreshBTN = QtWidgets.QPushButton("Update Leads")
+        self.renderVarNodeTBL = FilterableTable(["Node", "Data Type", "Source Name", "Source Type","Format","Path"])
+        self.renderVarNodeTBL.filterCMB.addItems([''])
+        self.renderVarNodeTBL.table.setColumnWidth(0, 100)
+
+        # Load Data
+        self.getData()
+        self.loadTable(self.renderVarNodeParameters)
 
     def createLayoutExpanded(self):
         layout = self.expandedDialog.layout()
-        layout.addWidget(self.expandedLabel)
-        layout.addWidget(self.refreshBTN)
+        layout.addWidget(self.renderVarNodeTBL)
 
     def createConnectionExpanded(self):
-        self.refreshBTN.clicked.connect(lambda: self.expandedLabel.setText("Leads refreshed!"))
+        lastColumn = self.renderVarNodeTBL.model.columnCount()-1
+        self.renderVarNodeTBL.table.doubleClicked.connect(self.handleDoubleClickToSelectNode(self.renderVarNodeTBL, lastColumn))
+
+    
+    def loadTable(self, data):
+        if data:
+            self.renderVarNodeTBL.clearContent()
+            items = []
+
+            for param in data:
+
+                variables = [param.nodeName, param.dataType, param.sourceName, param.sourceType, param.aovFormat, param.nodePath]
+                items = []
+                for value in variables:
+                    if not value:
+                        value = ""
+                
+                    item = QtGui.QStandardItem(value)
+                    item.setToolTip(value)
+                    item.setEditable(False)
+                    items.append(item)
+
+                self.renderVarNodeTBL.model.appendRow(items)
+    
+    def getVarParam(self, nodeList):
+        paramList = []
+
+        variablesList = ["dataType","sourceName","sourceType","xn__driverparametersaovformat_shbkd"]
+
+        for path in nodeList:
+            node = hou.node(path)
+            if node.type().name() == "rendervar":
+                parameters = node.parms()
+                newRenderVar = RenderVarParameter(nodePath=path, nodeName= node.name())
+
+                for param in parameters:
+                    #print(param.parmTemplate())
+                    paramName = param.name()
+                    if paramName in variablesList:
+
+                        if param.parmTemplate().type().name() == "String":
+                            paramValue = param.unexpandedString()
+                        else:
+                            paramValue = param.eval()
+                            if not paramValue:
+                                paramValue = "0.0"
+
+                        if paramValue:
+                            if paramName == variablesList[0]: newRenderVar.dataType = str(paramValue)
+                            elif paramName == variablesList[1]: newRenderVar.sourceName = str(paramValue)
+                            elif paramName == variablesList[2]: newRenderVar.sourceType = str(paramValue)
+                            elif paramName == variablesList[3]: newRenderVar.aovFormat = str(paramValue)
+                
+                paramList.append(newRenderVar)
+
+        return paramList
 
 class LightInformationBLK(ExpandableBlock):
     def __init__(self, nodeList):
@@ -474,7 +582,6 @@ class LightInformationBLK(ExpandableBlock):
                 self.summaryTBL.setItem(rowPosition, col, item)
 
     def createWidgets(self):
-        self.label = QtWidgets.QLabel("Light Contribution HERE")
 
         self.summaryTBL = QtWidgets.QTableWidget()
         self.summaryTBL.setColumnCount(9)
@@ -486,7 +593,7 @@ class LightInformationBLK(ExpandableBlock):
         self.summaryTBL.setColumnWidth(0, 100)
         for i in range(1,8):
             self.summaryTBL.setColumnWidth(i, 50)
-        self.summaryTBL.setMinimumWidth(500)
+        self.summaryTBL.setMinimumWidth(540)
         self.summaryTBL.setMinimumHeight(250)
         self.summaryTBL.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
 
@@ -511,26 +618,9 @@ class LightInformationBLK(ExpandableBlock):
         layout.addWidget(self.lightNodeTBL)
 
     def createConnectionExpanded(self):
-        self.lightNodeTBL.table.doubleClicked.connect(self.onCellDoubleClicked_nodeTBL)
+        lastColumn = self.lightNodeTBL.model.columnCount()-1
+        self.lightNodeTBL.table.doubleClicked.connect(self.handleDoubleClickToSelectNode(self.lightNodeTBL, lastColumn))
 
-
-    def onCellDoubleClicked_nodeTBL(self, index: QtCore.QModelIndex):
-        sourceIndex = self.lightNodeTBL.proxyModel.mapToSource(index)
-        if sourceIndex.column() == 10:
-            value = sourceIndex.data()
-            node = hou.node(value)
-            if node:
-                # Select the node
-                node.setSelected(True, clear_all_selected=True)
-                
-                # Focus on the node in the network editor pane
-                # Find the network editor pane that shows this node's context
-                for pane in hou.ui.paneTabs():
-                    if isinstance(pane, hou.NetworkEditor) and pane.pwd() == node.parent():
-                        pane.setCurrentNode(node)
-                        #pane.bringToFront()
-                        #pane.show()
-                        break
     
     def loadTable(self, data):
         if data:
@@ -555,7 +645,7 @@ class LightInformationBLK(ExpandableBlock):
     
     def getLightParam(self, nodeList):
         paramList = []
-        lightList = ["xn__primvarsarnoldcamera_p8ag",
+        variablesList = ["xn__primvarsarnoldcamera_p8ag",
                      "xn__primvarsarnolddiffuse_cbbg",
                      "xn__primvarsarnoldspecular_ycbg",
                      "xn__primvarsarnoldtransmission_hjbg",
@@ -576,7 +666,7 @@ class LightInformationBLK(ExpandableBlock):
                 for param in parameters:
                     paramName = param.name()
                     #print(param.parmTemplate())
-                    if paramName in lightList and not param.isDisabled():
+                    if paramName in variablesList and not param.isDisabled():
                         
                         if param.parmTemplate().type().name() == "String":
                             paramValue = param.unexpandedString()
@@ -587,14 +677,14 @@ class LightInformationBLK(ExpandableBlock):
 
                           
                         if paramValue:
-                            if paramName == lightList[0]: newLight.camera = str(paramValue)
-                            elif paramName == lightList[1]: newLight.diffuse = str(paramValue)
-                            elif paramName == lightList[2]: newLight.specular = str(paramValue)
-                            elif paramName == lightList[3]: newLight.transmission = str(paramValue)
-                            elif paramName == lightList[4]: newLight.sss = str(paramValue)
-                            elif paramName == lightList[5]: newLight.volume = str(paramValue)
-                            elif paramName == lightList[6]: newLight.indirect = str(paramValue)
-                            elif paramName == lightList[7]: 
+                            if paramName == variablesList[0]: newLight.camera = str(paramValue)
+                            elif paramName == variablesList[1]: newLight.diffuse = str(paramValue)
+                            elif paramName == variablesList[2]: newLight.specular = str(paramValue)
+                            elif paramName == variablesList[3]: newLight.transmission = str(paramValue)
+                            elif paramName == variablesList[4]: newLight.sss = str(paramValue)
+                            elif paramName == variablesList[5]: newLight.volume = str(paramValue)
+                            elif paramName == variablesList[6]: newLight.indirect = str(paramValue)
+                            elif paramName == variablesList[7]: 
                                 newLight.aovGroup = paramValue if str(paramValue).strip() not in ("", "0", "1") else ""
                     
 
