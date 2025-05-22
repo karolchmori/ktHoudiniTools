@@ -337,8 +337,8 @@ class FileCheckBLK(ExpandableBlock):
     def createLayoutExpanded(self):
 
         """Function that creates all the layouts and add widgets"""
-        self.mainLayout = self.expandedDialog.layout()
-        self.mainLayout.addWidget(self.fileNodeTBL)
+        layout = self.expandedDialog.layout()
+        layout.addWidget(self.fileNodeTBL)
 
     def createConnectionExpanded(self):
         self.fileNodeTBL.table.doubleClicked.connect(self.onCellDoubleClicked_nodeTBL)
@@ -363,7 +363,7 @@ class FileCheckBLK(ExpandableBlock):
         sourceIndex = self.fileNodeTBL.proxyModel.mapToSource(index)
         if sourceIndex.column() == 3:
             value = sourceIndex.data()
-            print(f"Double-clicked column 3 value: {value}")
+            #print(f"Double-clicked column 3 value: {value}")
             node = hou.node(value)
             if node:
                 # Select the node
@@ -463,27 +463,29 @@ class LightInformationBLK(ExpandableBlock):
             rowPosition = self.summaryTBL.rowCount()
             self.summaryTBL.insertRow(rowPosition)
 
-            self.summaryTBL.setItem(rowPosition, 0, QtWidgets.QTableWidgetItem(light.nodeName))
-            self.summaryTBL.setItem(rowPosition, 1, QtWidgets.QTableWidgetItem(str(light.camera) or ""))
-            self.summaryTBL.setItem(rowPosition, 2, QtWidgets.QTableWidgetItem(str(light.diffuse) or ""))
-            self.summaryTBL.setItem(rowPosition, 3, QtWidgets.QTableWidgetItem(str(light.specular) or ""))
-            self.summaryTBL.setItem(rowPosition, 4, QtWidgets.QTableWidgetItem(str(light.transmission) or ""))
-            self.summaryTBL.setItem(rowPosition, 5, QtWidgets.QTableWidgetItem(str(light.sss) or ""))
-            self.summaryTBL.setItem(rowPosition, 6, QtWidgets.QTableWidgetItem(str(light.volume) or ""))
-            self.summaryTBL.setItem(rowPosition, 7, QtWidgets.QTableWidgetItem(str(light.indirect) or ""))
-            self.summaryTBL.setItem(rowPosition, 8, QtWidgets.QTableWidgetItem(str(light.aovGroup) or ""))
+            values = [light.nodeName, str(light.camera), str(light.diffuse), str(light.specular),
+            str(light.transmission), str(light.sss), str(light.volume), str(light.indirect),
+            str(light.aovGroup),]
+
+            for col, val in enumerate(values):
+                if not val or val == "None":
+                   val = ""
+
+                item = QtWidgets.QTableWidgetItem(val)
+                item.setFlags(item.flags() & ~QtCore.Qt.ItemIsEditable)
+                self.summaryTBL.setItem(rowPosition, col, item)
 
     def createWidgets(self):
         self.label = QtWidgets.QLabel("Light Contribution HERE")
 
         self.summaryTBL = QtWidgets.QTableWidget()
         self.summaryTBL.setColumnCount(9)
-        self.summaryTBL.setHorizontalHeaderLabels(["Light", "C", "D", "S","T","SS","V","I","Group"])
+        self.summaryTBL.setHorizontalHeaderLabels(["Node", "C", "D", "S","T","SS","V","I","Group"])
         self.summaryTBL.setSortingEnabled(False)
         self.summaryTBL.verticalHeader().setVisible(False)
         self.summaryTBL.resizeColumnsToContents()
         self.summaryTBL.resizeRowsToContents()
-        self.summaryTBL.setColumnWidth(0, 80)
+        self.summaryTBL.setColumnWidth(0, 100)
         for i in range(1,8):
             self.summaryTBL.setColumnWidth(i, 50)
         self.summaryTBL.setMinimumWidth(500)
@@ -496,14 +498,59 @@ class LightInformationBLK(ExpandableBlock):
         self.contentLYT.addWidget(self.summaryTBL, alignment=QtCore.Qt.AlignHCenter)
 
     def createWidgetsExpanded(self):
-        self.refreshBTN = QtWidgets.QPushButton("Update Leads")
+        self.lightNodeTBL = FilterableTable(["Node", "C", "D", "S","T","SS","V","I","Group","Path"])
+        self.lightNodeTBL.filterCMB.addItems([''])
+        self.lightNodeTBL.table.setColumnWidth(0, 100)
+        for i in range(1,8):
+            self.lightNodeTBL.table.setColumnWidth(i, 50)
+
+        # Load Data
+        self.getData()
+        self.loadTable(self.lightNodeParameters)
 
     def createLayoutExpanded(self):
         layout = self.expandedDialog.layout()
-        layout.addWidget(self.refreshBTN)
+        layout.addWidget(self.lightNodeTBL)
 
     def createConnectionExpanded(self):
-        self.refreshBTN.clicked.connect(lambda: self.expandedLabel.setText("Leads refreshed!"))
+        self.lightNodeTBL.table.doubleClicked.connect(self.onCellDoubleClicked_nodeTBL)
+
+
+    def onCellDoubleClicked_nodeTBL(self, index: QtCore.QModelIndex):
+        sourceIndex = self.fileNodeTBL.proxyModel.mapToSource(index)
+        if sourceIndex.column() == 9:
+            value = sourceIndex.data()
+            node = hou.node(value)
+            if node:
+                # Select the node
+                node.setSelected(True, clear_all_selected=True)
+                
+                # Focus on the node in the network editor pane
+                # Find the network editor pane that shows this node's context
+                for pane in hou.ui.paneTabs():
+                    if isinstance(pane, hou.NetworkEditor) and pane.pwd() == node.parent():
+                        pane.setCurrentNode(node)
+                        #pane.bringToFront()
+                        #pane.show()
+                        break
+    
+    def loadTable(self, data):
+        if data:
+            self.lightNodeTBL.clearContent()
+            items = []
+
+            for param in data:
+
+                variables = [param.nodeName, param.camera, param.diffuse, param.specular, param.transmission,
+                             param.sss, param.volume, param.indirect, param.aovGroup, param.nodePath]
+                items = []
+                for value in variables:
+                    item = QtGui.QStandardItem(value)
+                    item.setToolTip(value)
+                    item.setEditable(False)
+                    items.append(item)
+
+                self.lightNodeTBL.model.appendRow(items)
     
     def getLightParam(self, nodeList):
         paramList = []
@@ -521,7 +568,7 @@ class LightInformationBLK(ExpandableBlock):
 
         for path in nodeList:
             node = hou.node(path)
-            if "light" in node.type().name():
+            if "light" in node.type().name() and node.type().name() not in ("lightmixer","lightfilterlibrary"):
                 parameters = node.parms()
                 newLight = LightParameter(nodePath=path, nodeName= node.name())
 
