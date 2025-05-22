@@ -40,15 +40,34 @@ def getParamNodes(nodeList):
         for param in parameters:
             paramName = param.name()
             paramType = param.parmTemplate().type()
-            
+
+            if 'primpattern' in paramName:
+                print(param.parmTemplate())
+                print(param.unexpandedString()) # TODO:  "`lopinputprims('.', 0)`" means default???
+
             if paramType.name() == 'String':
                 stringType = param.parmTemplate().stringType()
+                
                 if stringType.name() == 'FileReference':
                     paramValue = param.unexpandedString()
                     if paramValue:
                         newParam = Parameter(nodePath=path, nodeType= nodeType, paramName=paramName, 
                                              paramType=paramType.name(), paramValue=paramValue)
                         paramList.append(newParam)
+                elif stringType.name() == 'Regular':
+                    if paramName == 'xn__primvarsarnoldsubdiv_type_uhbg': # FIX
+                        pass
+                        #print(param.isDisabled()) # TODO: To check if the parameter is Set to create (True) or Do nothing (False)
+
+            elif paramType.name() == 'Toggle':
+                pass
+            elif paramType.name() == 'Float':
+                pass
+            elif paramType.name() == 'Int':
+                pass
+            elif paramType.name() == 'Menu':
+                pass
+                
     
     return paramList
 
