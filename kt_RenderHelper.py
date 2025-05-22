@@ -28,19 +28,34 @@ class ExpandableBlock(QtWidgets.QGroupBox):
         super().__init__(title)
 
         self.expandedDialog = None
-        self.expandBTN = QtWidgets.QPushButton("Expandd")
+        # Widget
+        self.expandBTN = QtWidgets.QPushButton("+")
+        self.expandBTN.setFixedSize(30, 30)  # Small size
+
         self.contentWDT = QtWidgets.QWidget()
+        
+        # Layout
+        self.headerLYT = QtWidgets.QHBoxLayout()
+        self.headerLYT.addStretch()
+        self.headerLYT.addWidget(self.expandBTN)
+
         self.contentLYT = QtWidgets.QVBoxLayout(self.contentWDT)
+        self.contentLYT.setContentsMargins(0, 0, 0, 0)
+        self.contentLYT.setSpacing(2)
 
         self.mainLYT = QtWidgets.QVBoxLayout()
+        self.mainLYT.setContentsMargins(5, 5, 5, 5) 
+        self.mainLYT.setSpacing(2)    
+        self.mainLYT.addLayout(self.headerLYT)
         self.mainLYT.addWidget(self.contentWDT)
-        self.mainLYT.addWidget(self.expandBTN)
+        
         self.setLayout(self.mainLYT)
 
         self.createWidgets()
         self.createLayout()
         self.createConnection()
 
+        # Connections
         self.expandBTN.clicked.connect(self.expandView)
         if self.window():
             self.window().destroyed.connect(self.closeExpandedDialog)
@@ -75,19 +90,26 @@ class ExpandableBlock(QtWidgets.QGroupBox):
             self.expandedDialog = QtWidgets.QDialog()
             self.expandedDialog.setWindowTitle(self.title())
             self.expandedDialog.setLayout(QtWidgets.QVBoxLayout())
-            self.expandedDialog.resize(800, 600)
+            self.expandedDialog.setMinimumSize(800, 500)
             
             # Create and populate expanded view
             self.createWidgetsExpanded()
             self.createLayoutExpanded()
             self.createConnectionExpanded()
 
-        self.expandedDialog.exec_() # TODO: Maybe we have to change it to show
+        self.expandedDialog.show()
 
     def closeExpandedDialog(self):
         if self.expandedDialog is not None:
             self.expandedDialog.close()
             self.expandedDialog = None
+    
+    def getData(self):
+        """Override"""
+        pass
+
+    def refreshData(self):
+        self.getData()
 
 #endregion
 
@@ -169,6 +191,8 @@ class FilterableTable(QtWidgets.QWidget):
         self.filterCMB = QtWidgets.QComboBox()
         self.filterCMB.setEditable(True)
         self.filterCMB.setStyleSheet("""QComboBox { padding-right: 20px; }""")
+        self.filterCMB.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+
 
         self.invertCB = QtWidgets.QCheckBox("Invert")
 
@@ -177,7 +201,7 @@ class FilterableTable(QtWidgets.QWidget):
 
         filterLYT = QtWidgets.QHBoxLayout()
         filterLYT.addWidget(QtWidgets.QLabel("Filter:"))
-        filterLYT.addWidget(self.filterCMB)
+        filterLYT.addWidget(self.filterCMB, stretch=1)
         filterLYT.addWidget(self.invertCB)
 
         layout.addLayout(filterLYT)
@@ -223,19 +247,54 @@ class FileCheckBLK(ExpandableBlock):
 
         self.fileNodeParameters = []
         self.nodeList = []
+        self.counters = []
 
     def getData(self):
         node = hou.node("/stage")
         self.nodeList = getAllNodes(node)
         self.fileNodeParameters = self.getFileParam(self.nodeList)
+        self.counters = self.groupData(self.fileNodeParameters)
+
+        for i in range(3):
+            item = QtWidgets.QTableWidgetItem(str(self.counters[i])) # type QtWidgets.QTableWidgetItem
+            item.setFlags(item.flags() & ~QtCore.Qt.ItemFlag.ItemIsEditable)
+            self.summaryTBL.setItem(0 , i, item)
+
+            
+    def groupData(self, parmList):
+        hipCount = 0
+        jobCount = 0
+        othersCount = 0
+
+        for parm in parmList:
+            if "$HIP" in parm.fileValue:
+                hipCount += 1
+            elif "$JOB" in parm.fileValue:
+                jobCount += 1
+            else:
+                othersCount += 1
+        
+        return [hipCount, jobCount, othersCount]
         
     def createWidgets(self):
+        self.summaryTBL = QtWidgets.QTableWidget(1, 3)
+        self.summaryTBL.setHorizontalHeaderLabels(["$HIP", "$JOB", "Others"])
+        self.summaryTBL.setSortingEnabled(False)
+        self.summaryTBL.verticalHeader().setVisible(False)
+        self.summaryTBL.resizeColumnsToContents()
+        self.summaryTBL.resizeRowsToContents()
+        self.summaryTBL.setColumnWidth(0, 80)
+        self.summaryTBL.setColumnWidth(1, 80)
+        self.summaryTBL.setColumnWidth(2, 80)
+        self.summaryTBL.setFixedSize(250,65)
+        self.summaryTBL.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+
         self.getData()
         
-        self.label = QtWidgets.QLabel("$JOB - $HIP Amount: 0")
 
     def createLayout(self):
-        self.contentLYT.addWidget(self.label)
+        self.contentLYT.addWidget(self.summaryTBL, alignment=QtCore.Qt.AlignHCenter)
+
 
     def createConnection(self):
         pass 
@@ -243,9 +302,10 @@ class FileCheckBLK(ExpandableBlock):
     def createWidgetsExpanded(self):
         self.fileNodeTBL = FilterableTable(["Node", "Parameter", "Value", "Path"])
         self.fileNodeTBL.filterCMB.addItems(['','$JOB','$HIP'])
-
-        self.expandedLabel = QtWidgets.QLabel("Detailed summary with charts and tables")
-        self.refreshBTN = QtWidgets.QPushButton("Refresh Data")
+        self.fileNodeTBL.table.setColumnWidth(0, 100)
+        self.fileNodeTBL.table.setColumnWidth(1, 100)
+        self.fileNodeTBL.table.setColumnWidth(2, 270)
+        self.fileNodeTBL.table.setColumnWidth(3, 200)
 
         # Load Data
         self.getData()
@@ -456,17 +516,17 @@ class kt_RenderHelper(QtWidgets.QDialog):
         self.setMinimumWidth(1050)
         self.setMinimumHeight(650)
         self.setWindowFlags(self.windowFlags() ^ QtCore.Qt.WindowContextHelpButtonHint)
+        #self.setWindowFlags(QtCore.Qt.Tool | QtCore.Qt.Window)
 
         self.expandableBlocks = []
-
-
+        
         self.createWidgets()
         self.createLayout()
         self.createConnection()
     
     
     def createWidgets(self):
-        self.tempLBL = QtWidgets.QLabel('TEMP')
+        self.tempLBL = QtWidgets.QLabel(' ')
         self.refreshBTN = QtWidgets.QPushButton("Refresh")
 
 
@@ -488,14 +548,20 @@ class kt_RenderHelper(QtWidgets.QDialog):
         mainLayout = QtWidgets.QVBoxLayout(self)
         headerLYT = QtWidgets.QHBoxLayout()
         headerLYT.addWidget(self.tempLBL)
+        headerLYT.addStretch()
         headerLYT.addWidget(self.refreshBTN)
 
 
         topLYT = QtWidgets.QGridLayout()
+        topLYT.setColumnStretch(0, 0)  # A and B column: do NOT stretch
+        topLYT.setColumnStretch(1, 1)  # C column: stretch
+        topLYT.setColumnStretch(2, 1)  # C column: stretch
+        topLYT.setColumnStretch(3, 1)  # D column: stretch
+        topLYT.setColumnStretch(4, 1)  # D column: stretch
         topLYT.addWidget(self.fileCheckerBLK,0,0)
         topLYT.addWidget(self.cameraBLK,1,0)
-        topLYT.addWidget(self.renderVarBLK,0,1,2,1)
-        topLYT.addWidget(self.lightInfoBLK,0,2,2,1)
+        topLYT.addWidget(self.renderVarBLK,0,1,2,2)
+        topLYT.addWidget(self.lightInfoBLK,0,3,2,2)
         
         bottomLYT = QtWidgets.QGridLayout()
         bottomLYT.addWidget(self.renderGeoPrimitivesBLK, 0,0)
@@ -509,12 +575,18 @@ class kt_RenderHelper(QtWidgets.QDialog):
 
 
     def createConnection(self):
-        pass
+        self.refreshBTN.clicked.connect(self.refreshAllBlocks)
     
     def closeEvent(self, event):
         for block in self.expandableBlocks:
             block.closeExpandedDialog()
         super().closeEvent(event)
+    
+    def refreshAllBlocks(self):
+        for block in self.expandableBlocks:
+            block.refreshData()
+
+                
 
     
 #endregion
