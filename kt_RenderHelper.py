@@ -23,10 +23,11 @@ class FileParameter(object):
         print("-----------------------------------------")
 
 class LightParameter(object):
-    def __init__(self, nodePath, nodeName, camera= None, diffuse= None, specular= None, transmission= None, 
+    def __init__(self, nodePath, nodeName, nodeType, camera= None, diffuse= None, specular= None, transmission= None, 
                  sss= None, volume= None, indirect= None, aovGroup= None):
         self.nodePath = nodePath
         self.nodeName = nodeName
+        self.nodeType = nodeType
         self.camera = camera
         self.diffuse = diffuse
         self.specular = specular
@@ -107,16 +108,15 @@ class ExpandableBlock(QtWidgets.QGroupBox):
         pass
 
     def expandView(self):
-        if self.expandedDialog is None:
-            self.expandedDialog = QtWidgets.QDialog()
-            self.expandedDialog.setWindowTitle(self.title())
-            self.expandedDialog.setLayout(QtWidgets.QVBoxLayout())
-            self.expandedDialog.setMinimumSize(800, 500)
-            
-            # Create and populate expanded view
-            self.createWidgetsExpanded()
-            self.createLayoutExpanded()
-            self.createConnectionExpanded()
+        self.expandedDialog = QtWidgets.QDialog()
+        self.expandedDialog.setWindowTitle(self.title())
+        self.expandedDialog.setLayout(QtWidgets.QVBoxLayout())
+        self.expandedDialog.setMinimumSize(800, 500)
+        
+        # Create and populate expanded view
+        self.createWidgetsExpanded()
+        self.createLayoutExpanded()
+        self.createConnectionExpanded()
 
         self.expandedDialog.show()
 
@@ -463,13 +463,11 @@ class LightInformationBLK(ExpandableBlock):
             rowPosition = self.summaryTBL.rowCount()
             self.summaryTBL.insertRow(rowPosition)
 
-            values = [light.nodeName, str(light.camera), str(light.diffuse), str(light.specular),
-            str(light.transmission), str(light.sss), str(light.volume), str(light.indirect),
-            str(light.aovGroup),]
+            values = [light.nodeName, light.camera, light.diffuse, light.specular,
+            light.transmission, light.sss, light.volume, light.indirect,
+            light.aovGroup,]
 
             for col, val in enumerate(values):
-                if not val or val == "None":
-                   val = ""
 
                 item = QtWidgets.QTableWidgetItem(val)
                 item.setFlags(item.flags() & ~QtCore.Qt.ItemIsEditable)
@@ -498,10 +496,10 @@ class LightInformationBLK(ExpandableBlock):
         self.contentLYT.addWidget(self.summaryTBL, alignment=QtCore.Qt.AlignHCenter)
 
     def createWidgetsExpanded(self):
-        self.lightNodeTBL = FilterableTable(["Node", "C", "D", "S","T","SS","V","I","Group","Path"])
+        self.lightNodeTBL = FilterableTable(["Node","Type","C", "D", "S","T","SS","V","I","Group","Path"])
         self.lightNodeTBL.filterCMB.addItems([''])
         self.lightNodeTBL.table.setColumnWidth(0, 100)
-        for i in range(1,8):
+        for i in range(2,9):
             self.lightNodeTBL.table.setColumnWidth(i, 50)
 
         # Load Data
@@ -517,8 +515,8 @@ class LightInformationBLK(ExpandableBlock):
 
 
     def onCellDoubleClicked_nodeTBL(self, index: QtCore.QModelIndex):
-        sourceIndex = self.fileNodeTBL.proxyModel.mapToSource(index)
-        if sourceIndex.column() == 9:
+        sourceIndex = self.lightNodeTBL.proxyModel.mapToSource(index)
+        if sourceIndex.column() == 10:
             value = sourceIndex.data()
             node = hou.node(value)
             if node:
@@ -541,10 +539,13 @@ class LightInformationBLK(ExpandableBlock):
 
             for param in data:
 
-                variables = [param.nodeName, param.camera, param.diffuse, param.specular, param.transmission,
+                variables = [param.nodeName, param.nodeType, param.camera, param.diffuse, param.specular, param.transmission,
                              param.sss, param.volume, param.indirect, param.aovGroup, param.nodePath]
                 items = []
                 for value in variables:
+                    if not value:
+                        value = ""
+                
                     item = QtGui.QStandardItem(value)
                     item.setToolTip(value)
                     item.setEditable(False)
@@ -561,7 +562,7 @@ class LightInformationBLK(ExpandableBlock):
                      "xn__primvarsarnoldsss_t3ag",
                      "xn__primvarsarnoldvolume_p8ag",
                      "xn__primvarsarnoldindirect_ycbg",
-                     "arnold_shaders_group",
+                     "xn__primvarsarnoldaov_t3ag",
                      #"xn__primvarsarnoldmax_bounces_uhbg",
                      ]
         
@@ -570,24 +571,29 @@ class LightInformationBLK(ExpandableBlock):
             node = hou.node(path)
             if "light" in node.type().name() and node.type().name() not in ("lightmixer","lightfilterlibrary"):
                 parameters = node.parms()
-                newLight = LightParameter(nodePath=path, nodeName= node.name())
+                newLight = LightParameter(nodePath=path, nodeName= node.name(), nodeType=node.type().name())
 
                 for param in parameters:
                     paramName = param.name()
+                    #print(param.parmTemplate())
                     if paramName in lightList and not param.isDisabled():
                         
                         if param.parmTemplate().type().name() == "String":
                             paramValue = param.unexpandedString()
                         else:
                             paramValue = param.eval()
+                            if not paramValue:
+                                paramValue = "0.0"
+
+                          
                         if paramValue:
-                            if paramName == lightList[0]: newLight.camera = paramValue
-                            elif paramName == lightList[1]: newLight.diffuse = paramValue
-                            elif paramName == lightList[2]: newLight.specular = paramValue
-                            elif paramName == lightList[3]: newLight.transmission = paramValue
-                            elif paramName == lightList[4]: newLight.sss = paramValue
-                            elif paramName == lightList[5]: newLight.volume = paramValue
-                            elif paramName == lightList[6]: newLight.indirect = paramValue
+                            if paramName == lightList[0]: newLight.camera = str(paramValue)
+                            elif paramName == lightList[1]: newLight.diffuse = str(paramValue)
+                            elif paramName == lightList[2]: newLight.specular = str(paramValue)
+                            elif paramName == lightList[3]: newLight.transmission = str(paramValue)
+                            elif paramName == lightList[4]: newLight.sss = str(paramValue)
+                            elif paramName == lightList[5]: newLight.volume = str(paramValue)
+                            elif paramName == lightList[6]: newLight.indirect = str(paramValue)
                             elif paramName == lightList[7]: 
                                 newLight.aovGroup = paramValue if str(paramValue).strip() not in ("", "0", "1") else ""
                     
