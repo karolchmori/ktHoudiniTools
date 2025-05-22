@@ -591,7 +591,8 @@ class LightInformationBLK(ExpandableBlock):
         self.summaryTBL.resizeColumnsToContents()
         self.summaryTBL.resizeRowsToContents()
         self.summaryTBL.setColumnWidth(0, 100)
-        for i in range(1,8):
+        self.summaryTBL.setColumnWidth(8, 150)
+        for i in range(1,7):
             self.summaryTBL.setColumnWidth(i, 50)
         self.summaryTBL.setMinimumWidth(540)
         self.summaryTBL.setMinimumHeight(250)
