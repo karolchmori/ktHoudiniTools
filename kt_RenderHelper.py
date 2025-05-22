@@ -33,6 +33,7 @@ def getAllNodes(node, nodeList = None, level = 0):
 class ExpandableBlock(QtWidgets.QGroupBox):
     def __init__(self, title):
         super().__init__(title)
+
         self.expandedDialog = None
         self.expandBTN = QtWidgets.QPushButton("Expandd")
         self.contentWDT = QtWidgets.QWidget()
@@ -43,11 +44,15 @@ class ExpandableBlock(QtWidgets.QGroupBox):
         self.mainLYT.addWidget(self.expandBTN)
         self.setLayout(self.mainLYT)
 
-        self.expandBTN.clicked.connect(self.expandView)
 
         self.createWidgets()
         self.createLayout()
         self.createConnection()
+
+        self.expandBTN.clicked.connect(self.expandView)
+        if self.window():
+            self.window().destroyed.connect(self.closeExpandedDialog)
+
     
     def createWidgets(self):
         """Override this in subclasses to add custom widgets."""
@@ -76,10 +81,6 @@ class ExpandableBlock(QtWidgets.QGroupBox):
     def expandView(self):
         if self.expandedDialog is None:
             self.expandedDialog = QtWidgets.QDialog()
-            self.expandedDialog.setWindowFlags(QtCore.Qt.Window)
-            
-            #self.expandedDialog.setWindowFlags(QtCore.Qt.Tool | QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.Window)
-            self.expandedDialog.setFocusPolicy(QtCore.Qt.NoFocus)
             self.expandedDialog.setWindowTitle(self.title())
             self.expandedDialog.setLayout(QtWidgets.QVBoxLayout())
             self.expandedDialog.resize(800, 600)
@@ -89,7 +90,12 @@ class ExpandableBlock(QtWidgets.QGroupBox):
             self.createLayoutExpanded()
             self.createConnectionExpanded()
 
-        self.expandedDialog.show()
+        self.expandedDialog.exec_() # TODO: Maybe we have to change it to show
+
+    def closeExpandedDialog(self):
+        if self.expandedDialog is not None:
+            self.expandedDialog.close()
+            self.expandedDialog = None
 
 class InvertibleFilterProxyModel(QtCore.QSortFilterProxyModel):
     def __init__(self, *args, **kwargs):
@@ -134,6 +140,7 @@ class FilterableTable(QtWidgets.QWidget):
         self.createWidgets()
         self.createLayouts()
         self.createConnections()
+    
         
     def createWidgets(self):
         # Models
@@ -206,65 +213,53 @@ class FileCheckBLK(ExpandableBlock):
         super().__init__("File Checker")
 
         self.fileNodeParameters = []
+        self.nodeList = []
+
+    def getData(self):
+        node = hou.node("/stage")
+        self.nodeList = getAllNodes(node)
+        self.fileNodeParameters = self.getFileParam(self.nodeList)
         
     def createWidgets(self):
+        self.getData()
+        
         self.label = QtWidgets.QLabel("$JOB - $HIP Amount: 0")
 
     def createLayout(self):
         self.contentLYT.addWidget(self.label)
 
     def createConnection(self):
-        pass  # Add signal-slot connections if needed
+        pass 
 
     def createWidgetsExpanded(self):
-        self.nodeParentTXT = QtWidgets.QLineEdit()
-        self.nodeParentTXT.setReadOnly(True)
-        self.nodeParentBTN = hou.qt.NodeChooserButton() # type: hou.qt.NodeChooserButton
-
         self.fileNodeTBL = FilterableTable(["Node", "Parameter", "Value", "Path"])
         self.fileNodeTBL.filterCMB.addItems(['','$JOB','$HIP'])
 
         self.expandedLabel = QtWidgets.QLabel("Detailed summary with charts and tables")
         self.refreshBTN = QtWidgets.QPushButton("Refresh Data")
 
+        # Load Data
+        self.getData()
+        self.loadTable(self.fileNodeParameters)
+
     def createLayoutExpanded(self):
 
         """Function that creates all the layouts and add widgets"""
         self.mainLayout = self.expandedDialog.layout()
-
-        """ Header """
-        self.nodeLYT = QtWidgets.QHBoxLayout()
-        self.nodeLYT.addWidget(QtWidgets.QLabel('Parent: '))
-        self.nodeLYT.addWidget(self.nodeParentTXT)
-        self.nodeLYT.addWidget(self.nodeParentBTN)
-
-        self.mainLayout.addLayout(self.nodeLYT)
         self.mainLayout.addWidget(self.fileNodeTBL)
 
     def createConnectionExpanded(self):
-        self.nodeParentBTN.nodeSelected.connect(self.onClick_nodeParentBTN)
-        #self.fileNodeTBL.doubleClicked.connect(self.onCellDoubleClicked_nodeTBL)
+        self.fileNodeTBL.table.doubleClicked.connect(self.onCellDoubleClicked_nodeTBL)
 
-    def onClick_nodeParentBTN(self, node):
-        self.expandedDialog.raise_()
-        self.expandedDialog.activateWindow()
-        
-        # Update the parent node
-        if node:
-        
-            self.nodeParentTXT.setText(str(node.path()))
+    def loadTable(self, data):
+        if data:
             self.fileNodeTBL.clearContent()
-            # If loaded update table
-            self.nodeList = getAllNodes(node)
-            self.getFileParam(self.nodeList)
-
             items = []
-            # Add to table
-            for param in self.fileNodeParameters:
+
+            for param in data:
                 variables = [param.nodeName, param.fileLabel, param.fileValue, param.nodePath]
                 items = []
                 for value in variables:
-                    print(f"VALUE: {value}")
                     item = QtGui.QStandardItem(value)
                     item.setToolTip(value)
                     item.setEditable(False)
@@ -272,11 +267,13 @@ class FileCheckBLK(ExpandableBlock):
 
                 self.fileNodeTBL.model.appendRow(items)
 
+
     def onCellDoubleClicked_nodeTBL(self, index: QtCore.QModelIndex):
-        sourceIndex = self.proxyModel.mapToSource(index)
-        if sourceIndex.column() == 4:
+        
+        sourceIndex = self.fileNodeTBL.proxyModel.mapToSource(index)
+        if sourceIndex.column() == 3:
             value = sourceIndex.data()
-            #print(f"Double-clicked column 4 value: {value}")
+            print(f"Double-clicked column 3 value: {value}")
             node = hou.node(value)
             if node:
                 # Select the node
@@ -287,10 +284,14 @@ class FileCheckBLK(ExpandableBlock):
                 for pane in hou.ui.paneTabs():
                     if isinstance(pane, hou.NetworkEditor) and pane.pwd() == node.parent():
                         pane.setCurrentNode(node)
-                        pane.bringToFront()
+                        #pane.bringToFront()
+                        #pane.show()
                         break
     
     def getFileParam(self, nodeList):
+        
+        paramList = []
+
         for path in nodeList:
             node = hou.node(path)
 
@@ -307,7 +308,9 @@ class FileCheckBLK(ExpandableBlock):
                             paramValue = param.unexpandedString()
                             if paramValue:
                                 newParam = FileParameter(nodePath=path, nodeName= node.name(), fileLabel=paramName, fileValue=paramValue)
-                                self.fileNodeParameters.append(newParam)
+                                paramList.append(newParam)
+
+        return paramList
 
 
 class CameraCheckBLK(ExpandableBlock):
@@ -441,6 +444,8 @@ class kt_RenderHelper(QtWidgets.QDialog):
         self.setMinimumHeight(650)
         self.setWindowFlags(self.windowFlags() ^ QtCore.Qt.WindowContextHelpButtonHint)
 
+        self.expandableBlocks = []
+
 
         self.createWidgets()
         self.createLayout()
@@ -459,7 +464,12 @@ class kt_RenderHelper(QtWidgets.QDialog):
         self.renderGeoPrimitivesBLK = RenderGeometryPrimitivesBLK()
         self.renderGeoVisibilityBLK = RenderGeometryVisibilityBLK()
 
-        
+        self.expandableBlocks.append(self.fileCheckerBLK)
+        self.expandableBlocks.append(self.cameraBLK)
+        self.expandableBlocks.append(self.renderVarBLK)
+        self.expandableBlocks.append(self.lightInfoBLK)
+        self.expandableBlocks.append(self.renderGeoPrimitivesBLK)
+        self.expandableBlocks.append(self.renderGeoVisibilityBLK)
 
     def createLayout(self):
         mainLayout = QtWidgets.QVBoxLayout(self)
@@ -487,6 +497,13 @@ class kt_RenderHelper(QtWidgets.QDialog):
 
     def createConnection(self):
         pass
+    
+    def closeEvent(self, event):
+        for block in self.expandableBlocks:
+            block.closeExpandedDialog()
+        super().closeEvent(event)
+
+    
 
 
 try:
