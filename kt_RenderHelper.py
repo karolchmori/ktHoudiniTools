@@ -7,6 +7,7 @@ global _ktRenderHelperInstance
 
 #region Objects
 
+
 class FileParameter(object):
     def __init__(self, nodePath, nodeName, fileLabel, fileValue):
         self.nodePath = nodePath
@@ -21,6 +22,26 @@ class FileParameter(object):
             print(f"{attribute}: {value}")
         print("-----------------------------------------")
 
+class LightParameter(object):
+    def __init__(self, nodePath, nodeName, camera= None, diffuse= None, specular= None, transmission= None, 
+                 sss= None, volume= None, indirect= None, aovGroup= None):
+        self.nodePath = nodePath
+        self.nodeName = nodeName
+        self.camera = camera
+        self.diffuse = diffuse
+        self.specular = specular
+        self.transmission = transmission
+        self.sss = sss
+        self.volume = volume
+        self.indirect = indirect
+        self.aovGroup = aovGroup
+
+    def showInformation(self):
+        """ Prints all attributes of the texture object except the `textureMapping` dictionary."""
+        print("-----------------------------------------")
+        for attribute, value in vars(self).items():  # Iterate over the instance's attributes
+            print(f"{attribute}: {value}")
+        print("-----------------------------------------")
 
 
 class ExpandableBlock(QtWidgets.QGroupBox):
@@ -198,8 +219,12 @@ class FilterableTable(QtWidgets.QWidget):
 
     def createLayouts(self):
         layout = QtWidgets.QVBoxLayout(self)
-
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+        
         filterLYT = QtWidgets.QHBoxLayout()
+        filterLYT.setContentsMargins(0, 0, 0, 0)
+        filterLYT.setSpacing(2)
         filterLYT.addWidget(QtWidgets.QLabel("Filter:"))
         filterLYT.addWidget(self.filterCMB, stretch=1)
         filterLYT.addWidget(self.invertCB)
@@ -334,9 +359,7 @@ class FileCheckBLK(ExpandableBlock):
 
                 self.fileNodeTBL.model.appendRow(items)
 
-
     def onCellDoubleClicked_nodeTBL(self, index: QtCore.QModelIndex):
-        
         sourceIndex = self.fileNodeTBL.proxyModel.mapToSource(index)
         if sourceIndex.column() == 3:
             value = sourceIndex.data()
@@ -356,7 +379,6 @@ class FileCheckBLK(ExpandableBlock):
                         break
     
     def getFileParam(self, nodeList):
-        
         paramList = []
 
         for path in nodeList:
@@ -430,25 +452,102 @@ class RenderVariablesBLK(ExpandableBlock):
 class LightInformationBLK(ExpandableBlock):
     def __init__(self, nodeList):
         self.nodeList = nodeList
+        self.lightNodeParameters = []
         super().__init__("Lights")
+    
+    def getData(self):
+        self.lightNodeParameters = self.getLightParam(self.nodeList)
+        self.summaryTBL.setRowCount(0)
+
+        for light in self.lightNodeParameters:
+            rowPosition = self.summaryTBL.rowCount()
+            self.summaryTBL.insertRow(rowPosition)
+
+            self.summaryTBL.setItem(rowPosition, 0, QtWidgets.QTableWidgetItem(light.nodeName))
+            self.summaryTBL.setItem(rowPosition, 1, QtWidgets.QTableWidgetItem(str(light.camera) or ""))
+            self.summaryTBL.setItem(rowPosition, 2, QtWidgets.QTableWidgetItem(str(light.diffuse) or ""))
+            self.summaryTBL.setItem(rowPosition, 3, QtWidgets.QTableWidgetItem(str(light.specular) or ""))
+            self.summaryTBL.setItem(rowPosition, 4, QtWidgets.QTableWidgetItem(str(light.transmission) or ""))
+            self.summaryTBL.setItem(rowPosition, 5, QtWidgets.QTableWidgetItem(str(light.sss) or ""))
+            self.summaryTBL.setItem(rowPosition, 6, QtWidgets.QTableWidgetItem(str(light.volume) or ""))
+            self.summaryTBL.setItem(rowPosition, 7, QtWidgets.QTableWidgetItem(str(light.indirect) or ""))
+            self.summaryTBL.setItem(rowPosition, 8, QtWidgets.QTableWidgetItem(str(light.aovGroup) or ""))
 
     def createWidgets(self):
         self.label = QtWidgets.QLabel("Light Contribution HERE")
 
+        self.summaryTBL = QtWidgets.QTableWidget()
+        self.summaryTBL.setColumnCount(9)
+        self.summaryTBL.setHorizontalHeaderLabels(["Light", "C", "D", "S","T","SS","V","I","Group"])
+        self.summaryTBL.setSortingEnabled(False)
+        self.summaryTBL.verticalHeader().setVisible(False)
+        self.summaryTBL.resizeColumnsToContents()
+        self.summaryTBL.resizeRowsToContents()
+        self.summaryTBL.setColumnWidth(0, 80)
+        for i in range(1,8):
+            self.summaryTBL.setColumnWidth(i, 50)
+        self.summaryTBL.setMinimumWidth(500)
+        self.summaryTBL.setMinimumHeight(250)
+        self.summaryTBL.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+
+        self.getData()
+
     def createLayout(self):
-        self.contentLYT.addWidget(self.label)
+        self.contentLYT.addWidget(self.summaryTBL, alignment=QtCore.Qt.AlignHCenter)
 
     def createWidgetsExpanded(self):
-        self.expandedLabel = QtWidgets.QLabel("Lead details and conversion funnel")
         self.refreshBTN = QtWidgets.QPushButton("Update Leads")
 
     def createLayoutExpanded(self):
         layout = self.expandedDialog.layout()
-        layout.addWidget(self.expandedLabel)
         layout.addWidget(self.refreshBTN)
 
     def createConnectionExpanded(self):
         self.refreshBTN.clicked.connect(lambda: self.expandedLabel.setText("Leads refreshed!"))
+    
+    def getLightParam(self, nodeList):
+        paramList = []
+        lightList = ["xn__primvarsarnoldcamera_p8ag",
+                     "xn__primvarsarnolddiffuse_cbbg",
+                     "xn__primvarsarnoldspecular_ycbg",
+                     "xn__primvarsarnoldtransmission_hjbg",
+                     "xn__primvarsarnoldsss_t3ag",
+                     "xn__primvarsarnoldvolume_p8ag",
+                     "xn__primvarsarnoldindirect_ycbg",
+                     "arnold_shaders_group",
+                     #"xn__primvarsarnoldmax_bounces_uhbg",
+                     ]
+        
+
+        for path in nodeList:
+            node = hou.node(path)
+            if "light" in node.type().name():
+                parameters = node.parms()
+                newLight = LightParameter(nodePath=path, nodeName= node.name())
+
+                for param in parameters:
+                    paramName = param.name()
+                    if paramName in lightList and not param.isDisabled():
+                        
+                        if param.parmTemplate().type().name() == "String":
+                            paramValue = param.unexpandedString()
+                        else:
+                            paramValue = param.eval()
+                        if paramValue:
+                            if paramName == lightList[0]: newLight.camera = paramValue
+                            elif paramName == lightList[1]: newLight.diffuse = paramValue
+                            elif paramName == lightList[2]: newLight.specular = paramValue
+                            elif paramName == lightList[3]: newLight.transmission = paramValue
+                            elif paramName == lightList[4]: newLight.sss = paramValue
+                            elif paramName == lightList[5]: newLight.volume = paramValue
+                            elif paramName == lightList[6]: newLight.indirect = paramValue
+                            elif paramName == lightList[7]: 
+                                newLight.aovGroup = paramValue if str(paramValue).strip() not in ("", "0", "1") else ""
+                    
+
+                paramList.append(newLight)
+
+        return paramList
 
 class RenderGeometryPrimitivesBLK(ExpandableBlock):
     def __init__(self, nodeList):
@@ -517,8 +616,8 @@ class kt_RenderHelper(QtWidgets.QDialog):
         super(kt_RenderHelper, self).__init__(parent)
 
         self.setWindowTitle('kt_RenderHelper')
-        self.setMinimumWidth(1050)
-        self.setMinimumHeight(650)
+        self.setMinimumWidth(1400)
+        self.setMinimumHeight(750)
         self.setWindowFlags(self.windowFlags() ^ QtCore.Qt.WindowContextHelpButtonHint)
         #self.setWindowFlags(QtCore.Qt.Tool | QtCore.Qt.Window)
 
