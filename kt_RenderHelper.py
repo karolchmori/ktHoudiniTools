@@ -22,6 +22,22 @@ class FileParameter(object):
             print(f"{attribute}: {value}")
         print("-----------------------------------------")
 
+class CameraParameter(object):
+    def __init__(self, nodePath, nodeName, nodeAction= None, shutterOpen= None, shutterClose= None):
+        self.nodePath = nodePath
+        self.nodeName = nodeName
+        self.nodeAction = nodeAction
+        self.shutterOpen = shutterOpen
+        self.shutterClose = shutterClose
+
+    def showInformation(self):
+        """ Prints all attributes of the texture object except the `textureMapping` dictionary."""
+        print("-----------------------------------------")
+        for attribute, value in vars(self).items():  # Iterate over the instance's attributes
+            print(f"{attribute}: {value}")
+        print("-----------------------------------------")
+
+
 class LightParameter(object):
     def __init__(self, nodePath, nodeName, nodeType, camera= None, diffuse= None, specular= None, transmission= None, 
                  sss= None, volume= None, indirect= None, aovGroup= None):
@@ -422,26 +438,112 @@ class FileCheckBLK(ExpandableBlock):
 class CameraCheckBLK(ExpandableBlock):
     def __init__(self, nodeList):
         self.nodeList = nodeList
+        self.cameraParameters = []
+        self.counters = []
+
         super().__init__("Camera")
+    
+    def getData(self):
+    
+        self.cameraParameters = self.getCamParam(self.nodeList)
+        self.counters = self.groupData(self.cameraParameters)
+
+        for i in range(2):
+            item = QtWidgets.QTableWidgetItem(str(self.counters[i])) # type QtWidgets.QTableWidgetItem
+            item.setFlags(item.flags() & ~QtCore.Qt.ItemFlag.ItemIsEditable)
+            item.setTextAlignment(QtCore.Qt.AlignCenter)
+            self.summaryTBL.setItem(0 , i, item)
+    
+    def groupData(self, parmList):
+        camCreate = 0
+        camEdit = 0
+
+        for parm in parmList:
+            if "Create" in parm.nodeAction:
+                camCreate += 1
+            else:
+                camEdit += 1
+        
+        return [camCreate, camEdit]
 
     def createWidgets(self):
-        self.label = QtWidgets.QLabel("CAMERA Status 1")
+        self.summaryTBL = QtWidgets.QTableWidget(1, 2)
+        self.summaryTBL.setHorizontalHeaderLabels(["Create", "Edit"])
+        self.summaryTBL.setSortingEnabled(False)
+        self.summaryTBL.verticalHeader().setVisible(False)
+        self.summaryTBL.setColumnWidth(0, 60)
+        self.summaryTBL.setColumnWidth(1, 60)
+        self.summaryTBL.setFixedSize(190,65)
+        self.summaryTBL.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+
+
+        self.getData()
 
     def createLayout(self):
-        self.contentLYT.addWidget(self.label)
+        self.contentLYT.addWidget(self.summaryTBL, alignment=QtCore.Qt.AlignHCenter)
 
     def createWidgetsExpanded(self):
-        self.expandedLabel = QtWidgets.QLabel("Detailed opportunity pipeline")
-        self.refreshBTN = QtWidgets.QPushButton("Refresh Opportunities")
+        self.camNodeTBL = FilterableTable(["Node", "Action", "Shutter Open", "Shutter Close", "Path"])
+        self.camNodeTBL.filterCMB.addItems(['','Create','Edit'])
+        self.camNodeTBL.table.setColumnWidth(0, 150)
+        self.camNodeTBL.table.setColumnWidth(1, 100)
+        self.camNodeTBL.table.setColumnWidth(2, 125)
+        self.camNodeTBL.table.setColumnWidth(3, 125)
+        self.camNodeTBL.table.setColumnWidth(4, 200)
+
+        # Load Data
+        self.getData()
+        self.loadTable(self.cameraParameters)
 
     def createLayoutExpanded(self):
         layout = self.expandedDialog.layout()
-        layout.addWidget(self.expandedLabel)
-        layout.addWidget(self.refreshBTN)
+        layout.addWidget(self.camNodeTBL)
 
     def createConnectionExpanded(self):
-        self.refreshBTN.clicked.connect(lambda: self.expandedLabel.setText("Opportunities updated!"))
+        pass
+    
+    def loadTable(self, data):
+        if data:
+            self.camNodeTBL.clearContent()
+            items = []
 
+            for param in data:
+                variables = [param.nodeName, param.nodeAction, str(param.shutterOpen), str(param.shutterClose), param.nodePath]
+                items = []
+                for value in variables:
+                    item = QtGui.QStandardItem(value)
+                    item.setToolTip(value)
+                    item.setEditable(False)
+                    items.append(item)
+
+                self.camNodeTBL.model.appendRow(items)
+
+    def getCamParam(self, nodeList):
+        paramList = []
+
+        for path in nodeList:
+            node = hou.node(path)
+            if node.type().name() == 'camera':
+                parameters = node.parms()
+                shutterOpen = ''
+                shutterClose = ''
+                nodeAction = ''
+
+                for param in parameters:
+                    if "createprims" in param.name():
+                        nodeAction = param.menuLabels()[param.eval()]
+
+                    if param.name() in ("xn__shutteropen_0ta","xn__shutterclose_nva") and not param.isDisabled():
+                        
+                        if param.name() == "xn__shutteropen_0ta":
+                            shutterOpen = param.eval()
+                        if param.name() == "xn__shutterclose_nva":
+                            shutterClose = param.eval()
+
+                newParam = CameraParameter(nodePath=path, nodeName= node.name(), shutterOpen=shutterOpen, shutterClose=shutterClose, nodeAction= nodeAction)
+                paramList.append(newParam)
+
+        return paramList
 
 class RenderVariablesBLK(ExpandableBlock):
     def __init__(self, nodeList):
@@ -664,7 +766,7 @@ class LightInformationBLK(ExpandableBlock):
 
         for path in nodeList:
             node = hou.node(path)
-            if "light" in node.type().name() and node.type().name() not in ("lightmixer","lightfilterlibrary"):
+            if "light" in node.type().name() and node.type().name() not in ("lightmixer","lightfilterlibrary","lightlinker","arnold::light_decay","arnold_light"):
                 parameters = node.parms()
                 newLight = LightParameter(nodePath=path, nodeName= node.name(), nodeType=node.type().name())
 
