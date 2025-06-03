@@ -1,4 +1,5 @@
 import hou
+import re
 from PySide2 import QtCore
 from PySide2 import QtWidgets
 from PySide2 import QtGui
@@ -97,13 +98,15 @@ class LightParameter(object):
         print("-----------------------------------------")
 
 class RenderVarParameter(object):
-    def __init__(self, nodePath, nodeName, dataType = None, sourceName= None, sourceType= None, aovFormat= None):
+    def __init__(self, nodePath, nodeName, varName = None, dataType = None, sourceName= None, sourceType= None, aovFormat= None, renderProduct = None):
         self.nodePath = nodePath
         self.nodeName = nodeName
+        self.varName = varName
         self.dataType = dataType
         self.sourceName = sourceName
         self.sourceType = sourceType
         self.aovFormat = aovFormat
+        self.renderProduct = renderProduct
 
     def showInformation(self):
         """ Prints all attributes of the texture object except the `textureMapping` dictionary."""
@@ -591,6 +594,7 @@ class RenderVariablesBLK(ExpandableBlock):
     def getData(self):
     
         self.renderVarNodeParameters = self.getVarParam(self.nodeList)
+        self.renderVarNodeParameters = self.getRenderProduct(self.nodeList, self.renderVarNodeParameters)
 
         self.summaryTBL.setRowCount(0)
 
@@ -598,7 +602,7 @@ class RenderVariablesBLK(ExpandableBlock):
             rowPosition = self.summaryTBL.rowCount()
             self.summaryTBL.insertRow(rowPosition)
 
-            values = [var.nodeName, var.dataType, var.sourceName, var.sourceType, var.aovFormat]
+            values = [var.nodeName, var.dataType, var.sourceName, var.sourceType, var.aovFormat, var.renderProduct]
 
             for col, val in enumerate(values):
 
@@ -608,8 +612,8 @@ class RenderVariablesBLK(ExpandableBlock):
 
     def createWidgets(self):
         self.summaryTBL = QtWidgets.QTableWidget()
-        self.summaryTBL.setColumnCount(5)
-        self.summaryTBL.setHorizontalHeaderLabels(["Node", "Data Type", "Source Name", "Source Type","Format"])
+        self.summaryTBL.setColumnCount(6)
+        self.summaryTBL.setHorizontalHeaderLabels(["Node", "Data Type", "Source Name", "Source Type","Format","Render Product"])
         self.summaryTBL.setSortingEnabled(True)
         self.summaryTBL.verticalHeader().setVisible(False)
         self.summaryTBL.resizeColumnsToContents()
@@ -629,7 +633,7 @@ class RenderVariablesBLK(ExpandableBlock):
         self.contentLYT.addWidget(self.summaryTBL, alignment=QtCore.Qt.AlignHCenter)
 
     def createWidgetsExpanded(self):
-        self.renderVarNodeTBL = FilterableTable(["Node", "Data Type", "Source Name", "Source Type","Format","Path"])
+        self.renderVarNodeTBL = FilterableTable(["Node", "Data Type", "Source Name", "Source Type","Format","Render Product","Path"])
         self.renderVarNodeTBL.filterCMB.addItems([''])
         self.renderVarNodeTBL.table.setColumnWidth(0, 100)
 
@@ -644,6 +648,7 @@ class RenderVariablesBLK(ExpandableBlock):
     def createConnectionExpanded(self):
         lastColumn = self.renderVarNodeTBL.model.columnCount()-1
         self.renderVarNodeTBL.table.doubleClicked.connect(self.handleDoubleClickToSelectNode(self.renderVarNodeTBL, lastColumn))
+        self.renderVarNodeTBL.table.doubleClicked.connect(self.handleDoubleClickToSelectNode(self.renderVarNodeTBL, lastColumn-1))
 
     
     def loadTable(self, data):
@@ -653,7 +658,7 @@ class RenderVariablesBLK(ExpandableBlock):
 
             for param in data:
 
-                variables = [param.nodeName, param.dataType, param.sourceName, param.sourceType, param.aovFormat, param.nodePath]
+                variables = [param.nodeName, param.dataType, param.sourceName, param.sourceType, param.aovFormat, param.renderProduct, param.nodePath]
                 items = []
                 for value in variables:
                     if not value:
@@ -678,7 +683,7 @@ class RenderVariablesBLK(ExpandableBlock):
                 newRenderVar = RenderVarParameter(nodePath=path, nodeName= node.name())
 
                 for param in parameters:
-                    #print(param.parmTemplate())
+                    
                     paramName = param.name()
                     if paramName in variablesList:
 
@@ -691,13 +696,45 @@ class RenderVariablesBLK(ExpandableBlock):
 
                         if paramValue:
                             if paramName == variablesList[0]: newRenderVar.dataType = str(paramValue)
-                            elif paramName == variablesList[1]: newRenderVar.sourceName = str(paramValue)
+                            elif paramName == variablesList[1]: 
+                                newRenderVar.sourceName = str(paramValue)
+                                match = re.search(r"'([^']*)'", newRenderVar.sourceName)
+                                if match:
+                                    newRenderVar.varName = match.group(1)
+                                
                             elif paramName == variablesList[2]: newRenderVar.sourceType = str(paramValue)
                             elif paramName == variablesList[3]: newRenderVar.aovFormat = str(paramValue)
-                
+
+
+
                 paramList.append(newRenderVar)
 
         return paramList
+    
+    def getRenderProduct(self, nodeList, paramList):
+
+        for path in nodeList:
+            node = hou.node(path)
+            listOrderedRender = []
+
+            if node.type().name() == "renderproduct":
+                parameters = node.parms()
+                for param in parameters:
+                    if param.name() == 'orderedVars':
+                        paramValue = param.unexpandedString()
+                        paramValues = paramValue.split(" ")
+                        for value in paramValues:
+                            lastName = value.split("/")[-1]
+                            listOrderedRender.append(lastName)
+
+            for obj in paramList:
+                if not obj.renderProduct:
+                    if obj.varName in listOrderedRender:
+                        obj.renderProduct = str(node.path())
+
+        
+        return paramList
+
 
 class LightInformationBLK(ExpandableBlock):
     def __init__(self, nodeList):
@@ -832,6 +869,7 @@ class LightInformationBLK(ExpandableBlock):
                     
 
                 paramList.append(newLight)
+        
 
         return paramList
 
