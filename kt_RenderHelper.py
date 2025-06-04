@@ -459,7 +459,10 @@ class FileCheckBLK(ExpandableBlock):
                         stringType = param.parmTemplate().stringType()
                         
                         if stringType.name() == 'FileReference':
-                            paramValue = param.unexpandedString()
+                            if not param.keyframes(): 
+                                paramValue = param.unexpandedString()
+                            else:
+                                paramValue = param.eval() # param.evalAtFrame(1)
                             if paramValue:
                                 newParam = FileParameter(nodePath=path, nodeName= node.name(), fileLabel=paramName, fileValue=paramValue)
                                 paramList.append(newParam)
@@ -714,7 +717,11 @@ class RenderVariablesBLK(ExpandableBlock):
                 parameters = node.parms()
                 for param in parameters:
                     if param.name() == 'orderedVars':
-                        paramValue = param.unexpandedString()
+                        if not param.keyframes(): 
+                            paramValue = param.unexpandedString()
+                        else:
+                            paramValue = param.eval() # param.evalAtFrame(1)
+                            
                         paramValues = paramValue.split(" ")
                         for value in paramValues:
                             lastName = value.split("/")[-1]
@@ -876,9 +883,6 @@ class RenderGeometryBLK(ExpandableBlock):
     def getData(self):
     
         self.renderGeoVisNodeParameters = self.getRenderGeoVisParam(self.nodeList)
-        
-        for obj in self.renderGeoVisNodeParameters:
-            obj.showInformation()
 
         self.summaryTBL.setRowCount(0)
 
