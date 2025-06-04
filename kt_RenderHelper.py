@@ -9,28 +9,15 @@ global _ktRenderHelperInstance
 #region Objects
 
 class RenderGeo(object):
-    def __init__(self, nodePath, nodeName, primitives = None):
+    def __init__(self, nodePath, nodeName, primitives = None, subdivType = None, iteration = None,
+                 camera = None, shadow = None, diffuseTransmit = None,
+                 specularTransmit = None, volume = None, diffuseReflect = None, specularReflect = None, 
+                 recieveShadows = None, selfShadows = None, opaque = None, matte = None):
         self.nodePath = nodePath
         self.nodeName = nodeName
         self.primitives = primitives
-    
-    def showInformation(self):
-        """ Prints all attributes of the texture object except the `textureMapping` dictionary."""
-        print("-----------------------------------------")
-        for attribute, value in vars(self).items():  # Iterate over the instance's attributes
-            print(f"{attribute}: {value}")
-        print("-----------------------------------------")
-
-class RenderGeoPrimitive(RenderGeo):
-    def __init__(self, nodePath, nodeName, primitives = None, subdivType = None, iteration = None):
         self.subdivType = subdivType
         self.iteration = iteration
-        super().__init__(nodePath, nodeName, primitives)
-
-class RenderGeoVisibility(RenderGeo):
-    def __init__(self, nodePath, nodeName, primitives = None, camera = None, shadow = None, diffuseTransmit = None,
-                 specularTransmit = None, volume = None, diffuseReflect = None, specularReflect = None, 
-                 recieveShadows = None, selfShadows = None, opaque = None, matte = None):
         self.camera = camera
         self.shadow = shadow
         self.diffuseTransmit = diffuseTransmit
@@ -42,7 +29,13 @@ class RenderGeoVisibility(RenderGeo):
         self.selfShadows = selfShadows
         self.opaque = opaque
         self.matte = matte
-        super().__init__(nodePath, nodeName, primitives)
+    
+    def showInformation(self):
+        """ Prints all attributes of the texture object except the `textureMapping` dictionary."""
+        print("-----------------------------------------")
+        for attribute, value in vars(self).items():  # Iterate over the instance's attributes
+            print(f"{attribute}: {value}")
+        print("-----------------------------------------")
 
 
 class FileParameter(object):
@@ -873,119 +866,7 @@ class LightInformationBLK(ExpandableBlock):
 
         return paramList
 
-class RenderGeometryPrimitivesBLK(ExpandableBlock):
-    def __init__(self, nodeList):
-        self.nodeList = nodeList
-        self.renderGeoPrimNodeParameters = []
-
-        super().__init__("Render Geometry (Primitives)")
-    
-    def getData(self):
-    
-        self.renderGeoPrimNodeParameters = self.getRenderGeoPrimParam(self.nodeList)
-        
-        self.summaryTBL.setRowCount(0)
-
-        for var in self.renderGeoPrimNodeParameters:
-            rowPosition = self.summaryTBL.rowCount()
-            self.summaryTBL.insertRow(rowPosition)
-
-            values = [var.nodeName, var.primitives, var.subdivType, var.iteration]
-
-            for col, val in enumerate(values):
-
-                item = QtWidgets.QTableWidgetItem(val)
-                item.setFlags(item.flags() & ~QtCore.Qt.ItemIsEditable)
-                self.summaryTBL.setItem(rowPosition, col, item)
-
-    def createWidgets(self):
-        self.summaryTBL = QtWidgets.QTableWidget()
-        self.summaryTBL.setColumnCount(4)
-        self.summaryTBL.setHorizontalHeaderLabels(["Node", "Primitives", "Subdivision", "Iteration"])
-        self.summaryTBL.setSortingEnabled(True)
-        self.summaryTBL.verticalHeader().setVisible(False)
-        self.summaryTBL.resizeColumnsToContents()
-        self.summaryTBL.resizeRowsToContents()
-        self.summaryTBL.setColumnWidth(0, 130)
-        self.summaryTBL.setColumnWidth(1, 180)
-        self.summaryTBL.setColumnWidth(2, 100)
-        self.summaryTBL.setColumnWidth(3, 80)
-        self.summaryTBL.setMinimumWidth(500)
-        self.summaryTBL.setMinimumHeight(250)
-        self.summaryTBL.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-
-        self.getData()
-
-    def createLayout(self):
-        self.contentLYT.addWidget(self.summaryTBL, alignment=QtCore.Qt.AlignHCenter)
-
-    def createWidgetsExpanded(self):
-        self.renderGeoPrimNodeTBL = FilterableTable(["Node", "Primitives", "Subdivision", "Iteration","Path"])
-        self.renderGeoPrimNodeTBL.filterCMB.addItems([''])
-        self.renderGeoPrimNodeTBL.table.setColumnWidth(0, 150)
-        self.renderGeoPrimNodeTBL.table.setColumnWidth(1, 250)
-        self.renderGeoPrimNodeTBL.table.setColumnWidth(2, 100)
-        self.renderGeoPrimNodeTBL.table.setColumnWidth(3, 80)
-        self.renderGeoPrimNodeTBL.table.setColumnWidth(4, 180)
-
-        # Load Data
-        self.getData()
-        self.loadTable(self.renderGeoPrimNodeParameters)
-
-    def createLayoutExpanded(self):
-        layout = self.expandedDialog.layout()
-        layout.addWidget(self.renderGeoPrimNodeTBL)
-
-    def createConnectionExpanded(self):
-        lastColumn = self.renderGeoPrimNodeTBL.model.columnCount()-1
-        self.renderGeoPrimNodeTBL.table.doubleClicked.connect(self.handleDoubleClickToSelectNode(self.renderGeoPrimNodeTBL, lastColumn))
-
-    
-    def loadTable(self, data):
-        if data:
-            self.renderGeoPrimNodeTBL.clearContent()
-            items = []
-
-            for param in data:
-
-                variables = [param.nodeName, param.primitives, param.subdivType, param.iteration, param.nodePath]
-                items = []
-                for value in variables:
-                    if not value:
-                        value = ""
-                
-                    item = QtGui.QStandardItem(value)
-                    item.setToolTip(value)
-                    item.setEditable(False)
-                    items.append(item)
-
-                self.renderGeoPrimNodeTBL.model.appendRow(items)
-
-    def getRenderGeoPrimParam(self, nodeList):
-        paramList = []
-
-        for path in nodeList:
-            node = hou.node(path)
-            if node.type().name() == "rendergeometrysettings":
-                parameters = node.parms()
-                newRenderGeoPrim = RenderGeoPrimitive(nodePath=path, nodeName= node.name())
-
-                for param in parameters:
-                    if param.name() == "primpattern":
-                        newRenderGeoPrim.primitives = param.unexpandedString()
-
-                    if newRenderGeoPrim.primitives != "`lopinputprims('.', 0)`" and not param.isDisabled():
-                        if param.name() == "xn__primvarsarnoldsubdiv_type_uhbg":
-                            newRenderGeoPrim.subdivType = param.unexpandedString()
-                        elif param.name() == "xn__primvarsarnoldsubdiv_iterations_mrbg":
-                            newRenderGeoPrim.iteration = str(param.eval())
-                
-                if newRenderGeoPrim.primitives != "`lopinputprims('.', 0)`":
-                    paramList.append(newRenderGeoPrim)
-
-        return paramList
-
-class RenderGeometryVisibilityBLK(ExpandableBlock):
+class RenderGeometryBLK(ExpandableBlock):
     def __init__(self, nodeList):
         self.nodeList = nodeList
         self.renderGeoVisNodeParameters = []
@@ -995,6 +876,9 @@ class RenderGeometryVisibilityBLK(ExpandableBlock):
     def getData(self):
     
         self.renderGeoVisNodeParameters = self.getRenderGeoVisParam(self.nodeList)
+        
+        for obj in self.renderGeoVisNodeParameters:
+            obj.showInformation()
 
         self.summaryTBL.setRowCount(0)
 
@@ -1002,8 +886,8 @@ class RenderGeometryVisibilityBLK(ExpandableBlock):
             rowPosition = self.summaryTBL.rowCount()
             self.summaryTBL.insertRow(rowPosition)
 
-            values = [var.nodeName, var.camera, var.shadow, var.diffuseTransmit, var.specularTransmit,
-                      var.volume, var.diffuseReflect, var.specularReflect, var.recieveShadows, 
+            values = [var.nodeName, var.primitives, var.subdivType, var.iteration, var.camera, var.shadow, var.diffuseTransmit, 
+                      var.specularTransmit, var.volume, var.diffuseReflect, var.specularReflect, var.recieveShadows, 
                       var.selfShadows, var.opaque, var.matte]
 
             for col, val in enumerate(values):
@@ -1014,25 +898,25 @@ class RenderGeometryVisibilityBLK(ExpandableBlock):
 
     def createWidgets(self):
         self.summaryTBL = QtWidgets.QTableWidget()
-        self.summaryTBL.setColumnCount(12)
-        self.summaryTBL.setHorizontalHeaderLabels(["Node", "Cam", "Shadow","Diffuse T","Specular T","Volume","Diffuse R","Specular R","Recieve Shadows","Self Shadows","Opaque","Matte"])
+        self.summaryTBL.setColumnCount(15)
+        self.summaryTBL.setHorizontalHeaderLabels(["Node", "Primitives", "Subdivision", "Iteration", "Cam", "Shadow","Diffuse T","Specular T","Volume","Diffuse R","Specular R","Recieve Shadows","Self Shadows","Opaque","Matte"])
         self.summaryTBL.setSortingEnabled(True)
         self.summaryTBL.verticalHeader().setVisible(False)
         self.summaryTBL.resizeColumnsToContents()
         self.summaryTBL.resizeRowsToContents()
         self.summaryTBL.setColumnWidth(0, 150)
-        self.summaryTBL.setColumnWidth(1, 70)
-        self.summaryTBL.setColumnWidth(2, 80)
-        self.summaryTBL.setColumnWidth(3, 90)
-        self.summaryTBL.setColumnWidth(4, 90)
-        self.summaryTBL.setColumnWidth(5, 90)
+        self.summaryTBL.setColumnWidth(4, 70)
+        self.summaryTBL.setColumnWidth(5, 80)
         self.summaryTBL.setColumnWidth(6, 90)
         self.summaryTBL.setColumnWidth(7, 90)
-        self.summaryTBL.setColumnWidth(8, 140)
-        self.summaryTBL.setColumnWidth(9, 120)
+        self.summaryTBL.setColumnWidth(8, 90)
+        self.summaryTBL.setColumnWidth(9, 90)
         self.summaryTBL.setColumnWidth(10, 90)
-        self.summaryTBL.setColumnWidth(11, 80)
-        self.summaryTBL.setMinimumWidth(800)
+        self.summaryTBL.setColumnWidth(11, 140)
+        self.summaryTBL.setColumnWidth(12, 120)
+        self.summaryTBL.setColumnWidth(13, 90)
+        self.summaryTBL.setColumnWidth(14, 80)
+        self.summaryTBL.setMinimumWidth(1350)
         self.summaryTBL.setMinimumHeight(250)
         self.summaryTBL.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
 
@@ -1042,21 +926,21 @@ class RenderGeometryVisibilityBLK(ExpandableBlock):
         self.contentLYT.addWidget(self.summaryTBL, alignment=QtCore.Qt.AlignHCenter)
 
     def createWidgetsExpanded(self):
-        self.renderGeoVisNodeTBL = FilterableTable(["Node", "Cam", "Shadow","Diffuse T","Specular T","Volume","Diffuse R","Specular R","Recieve Shadows","Self Shadows","Opaque","Matte","Path"])
+        self.renderGeoVisNodeTBL = FilterableTable(["Node", "Primitives", "Subdivision", "Iteration", "Cam", "Shadow","Diffuse T","Specular T","Volume","Diffuse R","Specular R","Recieve Shadows","Self Shadows","Opaque","Matte","Path"])
         self.renderGeoVisNodeTBL.filterCMB.addItems([''])
         self.renderGeoVisNodeTBL.table.setColumnWidth(0, 150)
-        self.renderGeoVisNodeTBL.table.setColumnWidth(1, 70)
-        self.renderGeoVisNodeTBL.table.setColumnWidth(2, 80)
-        self.renderGeoVisNodeTBL.table.setColumnWidth(3, 90)
-        self.renderGeoVisNodeTBL.table.setColumnWidth(4, 90)
-        self.renderGeoVisNodeTBL.table.setColumnWidth(5, 90)
+        self.renderGeoVisNodeTBL.table.setColumnWidth(4, 70)
+        self.renderGeoVisNodeTBL.table.setColumnWidth(5, 80)
         self.renderGeoVisNodeTBL.table.setColumnWidth(6, 90)
         self.renderGeoVisNodeTBL.table.setColumnWidth(7, 90)
-        self.renderGeoVisNodeTBL.table.setColumnWidth(8, 140)
-        self.renderGeoVisNodeTBL.table.setColumnWidth(9, 120)
+        self.renderGeoVisNodeTBL.table.setColumnWidth(8, 90)
+        self.renderGeoVisNodeTBL.table.setColumnWidth(9, 90)
         self.renderGeoVisNodeTBL.table.setColumnWidth(10, 90)
-        self.renderGeoVisNodeTBL.table.setColumnWidth(11, 80)
-        self.renderGeoVisNodeTBL.table.setColumnWidth(12, 250)
+        self.renderGeoVisNodeTBL.table.setColumnWidth(11, 140)
+        self.renderGeoVisNodeTBL.table.setColumnWidth(12, 120)
+        self.renderGeoVisNodeTBL.table.setColumnWidth(13, 90)
+        self.renderGeoVisNodeTBL.table.setColumnWidth(14, 80)
+        self.renderGeoVisNodeTBL.table.setColumnWidth(15, 250)
 
         # Load Data
         self.getData()
@@ -1078,7 +962,8 @@ class RenderGeometryVisibilityBLK(ExpandableBlock):
 
             for param in data:
 
-                variables = [param.nodeName, param.camera, param.shadow, param.diffuseTransmit, 
+                variables = [param.nodeName, param.primitives, param.subdivType, param.iteration, 
+                             param.camera, param.shadow, param.diffuseTransmit, 
                              param.specularTransmit, param.volume, param.diffuseReflect, param.specularReflect,
                              param.recieveShadows, param.selfShadows, param.opaque, param.matte, param.nodePath]
                 items = []
@@ -1096,7 +981,10 @@ class RenderGeometryVisibilityBLK(ExpandableBlock):
     def getRenderGeoVisParam(self, nodeList):
         paramList = []
 
-        variablesList = ["xn__primvarsarnoldvisibilitycamera_zpbgk",
+        variablesList = ["primpattern",
+                         "xn__primvarsarnoldsubdiv_type_uhbg",
+                         "xn__primvarsarnoldsubdiv_iterations_mrbg",
+                         "xn__primvarsarnoldvisibilitycamera_zpbgk",
                          "xn__primvarsarnoldvisibilityshadow_zpbgk",
                          "xn__primvarsarnoldvisibilitydiffuse_transmit_95bgk",
                          "xn__primvarsarnoldvisibilityspecular_transmit_w7bgk",
@@ -1114,28 +1002,28 @@ class RenderGeometryVisibilityBLK(ExpandableBlock):
             node = hou.node(path)
             if node.type().name() == "rendergeometrysettings":
                 parameters = node.parms()
-                newRenderGeoVis = RenderGeoVisibility(nodePath=path, nodeName= node.name())
+                newRenderGeoVis = RenderGeo(nodePath=path, nodeName= node.name())
                 
                 for param in parameters:
                     paramName = param.name()
 
-                    if paramName == "primpattern":
-                        newRenderGeoVis.primitives = param.unexpandedString()
+                    if paramName in variablesList and not param.isDisabled():
+                        boolValue = True if param.eval() == 1 else False
 
-                    if newRenderGeoVis.primitives == "`lopinputprims('.', 0)`" and paramName in variablesList and not param.isDisabled():
-                        paramValue = True if param.eval() == 1 else False
-
-                        if paramName == variablesList[0]: newRenderGeoVis.camera = str(paramValue)
-                        elif paramName == variablesList[1]: newRenderGeoVis.shadow = str(paramValue)
-                        elif paramName == variablesList[2]: newRenderGeoVis.diffuseTransmit = str(paramValue)
-                        elif paramName == variablesList[3]: newRenderGeoVis.specularTransmit = str(paramValue)
-                        elif paramName == variablesList[4]: newRenderGeoVis.volume = str(paramValue)
-                        elif paramName == variablesList[5]: newRenderGeoVis.diffuseReflect = str(paramValue)
-                        elif paramName == variablesList[6]: newRenderGeoVis.specularReflect = str(paramValue)
-                        elif paramName == variablesList[7]: newRenderGeoVis.recieveShadows = str(paramValue)
-                        elif paramName == variablesList[8]: newRenderGeoVis.selfShadows = str(paramValue)
-                        elif paramName == variablesList[9]: newRenderGeoVis.opaque = str(paramValue)
-                        elif paramName == variablesList[10]: newRenderGeoVis.matte = str(paramValue)
+                        if paramName == variablesList[0]: newRenderGeoVis.primitives = param.unexpandedString()
+                        elif paramName == variablesList[1]: newRenderGeoVis.subdivType = param.unexpandedString()
+                        elif paramName == variablesList[2]: newRenderGeoVis.iteration = str(param.eval())
+                        elif paramName == variablesList[3]: newRenderGeoVis.camera = str(boolValue)
+                        elif paramName == variablesList[4]: newRenderGeoVis.shadow = str(boolValue)
+                        elif paramName == variablesList[5]: newRenderGeoVis.diffuseTransmit = str(boolValue)
+                        elif paramName == variablesList[6]: newRenderGeoVis.specularTransmit = str(boolValue)
+                        elif paramName == variablesList[7]: newRenderGeoVis.volume = str(boolValue)
+                        elif paramName == variablesList[8]: newRenderGeoVis.diffuseReflect = str(boolValue)
+                        elif paramName == variablesList[9]: newRenderGeoVis.specularReflect = str(boolValue)
+                        elif paramName == variablesList[10]: newRenderGeoVis.recieveShadows = str(boolValue)
+                        elif paramName == variablesList[11]: newRenderGeoVis.selfShadows = str(boolValue)
+                        elif paramName == variablesList[12]: newRenderGeoVis.opaque = str(boolValue)
+                        elif paramName == variablesList[13]: newRenderGeoVis.matte = str(boolValue)
                 
                 paramList.append(newRenderGeoVis)
 
@@ -1186,15 +1074,14 @@ class kt_RenderHelper(QtWidgets.QDialog):
         self.cameraBLK = CameraCheckBLK(self.allNodes)
         self.renderVarBLK = RenderVariablesBLK(self.allNodes)
         self.lightInfoBLK = LightInformationBLK(self.allNodes)
-        self.renderGeoPrimitivesBLK = RenderGeometryPrimitivesBLK(self.allNodes)
-        self.renderGeoVisibilityBLK = RenderGeometryVisibilityBLK(self.allNodes)
+        #self.renderGeoPrimitivesBLK = RenderGeometryPrimitivesBLK(self.allNodes)
+        self.renderGeoBLK = RenderGeometryBLK(self.allNodes)
 
         self.expandableBlocks.append(self.fileCheckerBLK)
         self.expandableBlocks.append(self.cameraBLK)
         self.expandableBlocks.append(self.renderVarBLK)
         self.expandableBlocks.append(self.lightInfoBLK)
-        self.expandableBlocks.append(self.renderGeoPrimitivesBLK)
-        self.expandableBlocks.append(self.renderGeoVisibilityBLK)
+        self.expandableBlocks.append(self.renderGeoBLK)
 
     def createLayout(self):
         mainLayout = QtWidgets.QVBoxLayout(self)
@@ -1216,8 +1103,7 @@ class kt_RenderHelper(QtWidgets.QDialog):
         topLYT.addWidget(self.lightInfoBLK,0,3,2,2)
         
         bottomLYT = QtWidgets.QGridLayout()
-        bottomLYT.addWidget(self.renderGeoPrimitivesBLK, 0,0)
-        bottomLYT.addWidget(self.renderGeoVisibilityBLK, 0,1)
+        bottomLYT.addWidget(self.renderGeoBLK, 0,0)
 
         mainLayout.addLayout(headerLYT)
         mainLayout.addSpacing(10)
