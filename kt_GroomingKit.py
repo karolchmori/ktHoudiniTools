@@ -14,7 +14,7 @@ def createGroups(kwargs):
 
     # 1. Clean up old nodes before creating new ones
     for child in hda.children():
-        if child.name().startswith('group') and child.type().name() == 'groupcreate':
+        if child.name().startswith('HDA_group') and child.type().name() == 'groupcreate':
             child.destroy()
 
 
@@ -31,7 +31,7 @@ def createGroups(kwargs):
 
         # 3. Create and wire new nodes
         for i in range(1, amountInstances + 1):
-            name = f'group{i}'
+            name = f'HDA_group{i}'
 
             # Check if the node exists
             groupNode = hda.node(name)
@@ -54,7 +54,6 @@ def createGroups(kwargs):
             
             
 
-            print(f'Group {i}')
+            #print(f'Group {i}')
         
     hda.layoutChildren()
-
