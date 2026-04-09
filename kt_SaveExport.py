@@ -11,24 +11,23 @@ def getAllNodes(node, nodeList = None, level = 0):
 
     return nodeList
 
-
-
-def main():
+def exportComponentUSD():
     '''
     node = hou.node('/stage/Dead_Common_Bush_01')
     node.parm("execute").pressButton()
     '''
 
     nodeRoot = hou.node('/stage')
-
     nodeList = getAllNodes(nodeRoot)
 
     
     # 'componentoutput'
     for node in nodeList:
-        nodeType = node.type().name()
+        tempNode = hou.node(node)
+        nodeType = tempNode.type().name()
         if nodeType == 'componentoutput':
-            print(nodeType)
+            tempNode.parm("execute").pressButton()
+            #print(tempNode)
 
 
-main()
+exportComponentUSD()
