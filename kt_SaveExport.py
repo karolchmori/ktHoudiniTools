@@ -497,7 +497,7 @@ class ktTextureWidget(QtWidgets.QWidget):
         self.mainLayout.setContentsMargins(0, 0, 0, 0)
         self.mainLayout.setSpacing(0)
 
-        self.headerLYT = QtWidgets.QHBoxLayout(self)
+        self.headerLYT = QtWidgets.QHBoxLayout()
         self.headerLYT.setContentsMargins(0, 0, 0, 0)
         self.headerGB = QtWidgets.QGroupBox("")
         self.headerGB.setLayout(self.headerLYT)
@@ -519,7 +519,7 @@ class ktTextureWidget(QtWidgets.QWidget):
         self.headerLYT.addWidget(self.visibilityBTN) 
 
         """Information Layout"""
-        self.informationLYT = QtWidgets.QVBoxLayout(self) 
+        self.informationLYT = QtWidgets.QVBoxLayout() 
         self.informationLYT.setContentsMargins(0, 5, 0, 5)  # Remove all margins (left, top, right, bottom)
 
         self.informationGB = QtWidgets.QGroupBox("")
@@ -593,7 +593,73 @@ class ktTextureWidget(QtWidgets.QWidget):
             value = getattr(self.texture, attr, "")
             #print(f"type: {attr} value: {value}")
             row.txt.setText(value)
+
+class ktObjectWidget(QtWidgets.QWidget):
+
+    def __init__(self, name=None, mainPath=None):
+        super().__init__()
         
+        self.visibility = False
+        self.mainPath = mainPath
+        self.objName = name
+
+        self.createWidgets()
+        self.createLayouts()
+        self.createConnections()
+        self.loadInformation()
+
+    def createWidgets(self):
+        """
+        Creates UI widgets for the texture properties.
+
+        Initializes checkboxes, text fields, visibility buttons, and dynamically generates
+        texture-related rows based on the texture object.
+        """
+        self.selectedCB = QtWidgets.QCheckBox()
+        self.nameTXT = QtWidgets.QLineEdit()
+        self.nameTXT.setReadOnly(True)
+
+
+    def createLayouts(self):
+        """
+        Organizes and arranges UI elements into structured layouts.
+
+        Sets up the header section, summary layout, and detailed texture input layout
+        while applying styling and spacing.
+        """
+        self.mainLayout = QtWidgets.QVBoxLayout(self)
+        self.mainLayout.setContentsMargins(0, 0, 0, 0)
+        self.mainLayout.setSpacing(0)
+
+        self.headerLYT = QtWidgets.QHBoxLayout()
+        self.headerLYT.setContentsMargins(0, 0, 0, 0)
+        self.headerGB = QtWidgets.QGroupBox("")
+        self.headerGB.setLayout(self.headerLYT)
+        self.headerGB.setFixedHeight(55)
+        self.headerGB.setStyleSheet("""
+            QGroupBox {background-color: #4D4D4D; border: 0px solid #4D4D4D; border-radius: 0px; }
+            QGroupBox::title { color: white; }
+        """)
+
+        # Add Checkboxes
+        self.headerLYT.addWidget(self.selectedCB)
+        self.headerLYT.addWidget(self.nameTXT)
+
+        #self.mainLayout.addLayout(self.headerLYT)
+        self.mainLayout.addWidget(self.headerGB)
+
+    def createConnections(self):
+        pass
+
+    def loadInformation(self):
+        """
+        Loads existing texture information into the UI. Fills text fields with saved texture values 
+        and updates checkboxes based on existing data.
+        """
+        self.nameTXT.setText(self.objName)
+
+
+
 #endregion
 
 
@@ -719,6 +785,12 @@ class ktVeggieImporter(QtWidgets.QDialog):
 
         self.objContainer.setLayout(self.objLYT)
 
+        #Scroll Area Properties
+        self.objScroll.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)
+        self.objScroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.objScroll.setWidgetResizable(True)
+        self.objScroll.setWidget(self.objContainer)
+
 
         """ TEXTURES CONTAINER """
         self.texScroll = QtWidgets.QScrollArea()             # Scroll Area which contains the widgets, set as the centralWidget
@@ -763,7 +835,8 @@ class ktVeggieImporter(QtWidgets.QDialog):
         """
         if filePath:
             self.objPathTXT.setText(filePath)
-            # do something
+            if self.objPathTXT.text():
+                self.loadObjects()
 
     def onClick_texPathBTN(self, filePath):
         """
@@ -831,6 +904,46 @@ class ktVeggieImporter(QtWidgets.QDialog):
         """
         if self.selectAllCB.isChecked():
             self.checkAllTextures()
+
+    def loadObjects(self):
+        self.objList = []
+        folderPath = self.objPathTXT.text()
+
+        objects = self.readObjectsFromFolder(folderPath)
+
+        if objects:
+            self.createBTN.setEnabled(True)
+            # Display texture information
+            for obj in objects:
+                objectWD = ktObjectWidget(name=obj, mainPath=folderPath)
+                self.objLYT.addWidget(objectWD)
+                self.objList.append(objectWD)
+
+            self.objLYT.addStretch()
+        else:
+            self.createBTN.setEnabled(False)
+            # Show a message on the screen saying there's no results
+            lbl = QtWidgets.QLabel("No results.")
+            lbl.setAlignment(QtCore.Qt.AlignCenter)
+            lbl.setStyleSheet("background-color: #995D58; color: white; padding: 10px; font-weight: bold;")
+            self.objLYT.addWidget(lbl)
+
+    def readObjectsFromFolder(self, folderPath):
+        objects = []
+        folderPath = self.verifyFolderPath(folderPath)
+
+        try:
+            # Loop through files in the directory
+            for root, dirs, files in os.walk(folderPath):
+                for filename in files:
+                    if filename.endswith((".abc")):  # Filter by file type
+                        objects.append(filename)
+
+        except OSError as e:
+            self.showMessageError(f"Error reading directory: {e}")
+        
+        return objects
+
 
     def loadTextures(self):
         """
