@@ -45,7 +45,7 @@ def createComponentGeometry(kwargs):
     nodeComp = root.createNode('componentgeometry')
     nodeAbc = nodeComp.createNode('alembic')
 
-#region Texture
+#region Objects
 class Texture(object):
     """
     A class representing a texture object with various material properties.
@@ -329,10 +329,33 @@ class KarmaTexture(Texture):
 
         return materialBuilderNode
 
+
+class ComponentMesh(object):
+
+    def __init__(self, name, mainPath):
+
+        self.name = name
+        self.mainPath = mainPath
+
+    
+    def createComponent(self):
+        """Placeholder method for creating a texture object."""
+        pass
+
+
+    def showInformation(self):
+        """ Prints all attributes of the texture object except the `textureMapping` dictionary."""
+        print("-----------------------------------------")
+        for attribute, value in vars(self).items():  # Iterate over the instance's attributes
+            print(f"{attribute}: {value}")
+        print("-----------------------------------------")
+
+
+
 #endregion
 
 #region Widget
-class ktTextureRowWidget(QtWidgets.QWidget):
+class ktFileRowWidget(QtWidgets.QWidget):
     def __init__(self, label, fileType=hou.fileType.Image, mainPath=None):
         """Creates a horizontal widget that contains a label, text field and button.
 
@@ -469,7 +492,7 @@ class ktTextureWidget(QtWidgets.QWidget):
                 sumLayout, checkbox = self._createSummaryRow(details["abbreviation"])
                 self.summaryLayouts.append((sumLayout, checkbox))
                 
-                rowWidget = ktTextureRowWidget(label=details["label"], mainPath=self.mainPath)
+                rowWidget = ktFileRowWidget(label=details["label"], mainPath=self.mainPath)
                 self.textureRows.append(rowWidget)
 
         self.visibilityBTN = QtWidgets.QPushButton() 
@@ -596,12 +619,12 @@ class ktTextureWidget(QtWidgets.QWidget):
 
 class ktObjectWidget(QtWidgets.QWidget):
 
-    def __init__(self, name=None, mainPath=None):
+    def __init__(self, obj=None, mainPath=None):
         super().__init__()
         
         self.visibility = False
         self.mainPath = mainPath
-        self.objName = name
+        self.obj = obj
 
         self.createWidgets()
         self.createLayouts()
@@ -618,6 +641,25 @@ class ktObjectWidget(QtWidgets.QWidget):
         self.selectedCB = QtWidgets.QCheckBox()
         self.nameTXT = QtWidgets.QLineEdit()
         self.nameTXT.setReadOnly(True)
+
+        self.collapsibleRows = []
+        
+        rowWidget = ktFileRowWidget(label='File', mainPath=self.mainPath)
+        self.collapsibleRows.append(rowWidget)
+
+        self.visibilityBTN = QtWidgets.QPushButton() 
+        #https://houdini-icons.dev/
+        self.iconCollapsed = hou.qt.Icon("KEYS_Right")   # Left arrow when collapsed hicon:/SVGIcons.index?KEYS_Right.svg
+        self.iconExpanded =  hou.qt.Icon("KEYS_Down")    # Down arrow when expanded hicon:/SVGIcons.index?KEYS_Down.svg
+        self.visibilityBTN.setIcon(self.iconCollapsed)  # Default icon
+        self.visibilityBTN.setFlat(True)
+        self.visibilityBTN.setFixedWidth(30)
+
+        # Set the button's style using setStyleSheet
+        self.visibilityBTN.setStyleSheet("""
+            QPushButton:flat {color: white; font-size: 16px; border: 0px solid black; border-radius: 0px; padding: 10px 20px;
+            }
+        """)
 
 
     def createLayouts(self):
@@ -644,19 +686,44 @@ class ktObjectWidget(QtWidgets.QWidget):
         # Add Checkboxes
         self.headerLYT.addWidget(self.selectedCB)
         self.headerLYT.addWidget(self.nameTXT)
+        self.headerLYT.addWidget(self.visibilityBTN) 
+
+        """Information Layout"""
+        self.informationLYT = QtWidgets.QVBoxLayout() 
+        self.informationLYT.setContentsMargins(0, 5, 0, 5)  # Remove all margins (left, top, right, bottom)
+
+        self.informationGB = QtWidgets.QGroupBox("")
+        self.informationGB.setLayout(self.informationLYT)
+        self.informationGB.setVisible(self.visibility)
+        self.informationGB.setStyleSheet("""
+            QGroupBox { background-color: #363636; border: 0px solid #363636; border-radius: 0px; padding: 0; margin: 0; }
+            QGroupBox::title { color: white; }
+        """)
+        
+        # Add texture input widgets dynamically
+        for row in self.collapsibleRows:
+            if row:
+                self.informationLYT.addWidget(row)
 
         #self.mainLayout.addLayout(self.headerLYT)
         self.mainLayout.addWidget(self.headerGB)
+        self.mainLayout.addWidget(self.informationGB)
 
     def createConnections(self):
-        pass
+        self.visibilityBTN.clicked.connect(self.toggleVisibility)
 
     def loadInformation(self):
         """
         Loads existing texture information into the UI. Fills text fields with saved texture values 
         and updates checkboxes based on existing data.
         """
-        self.nameTXT.setText(self.objName)
+        self.nameTXT.setText(self.obj.name)
+
+    def toggleVisibility(self):
+        """Toggle the visibility of the texture rows using the visibility flag."""
+        self.visibility = not self.visibility
+        self.informationGB.setVisible(self.visibility)
+        self.visibilityBTN.setIcon(self.iconExpanded if self.visibility else self.iconCollapsed)
 
 
 
@@ -896,8 +963,13 @@ class ktVeggieImporter(QtWidgets.QDialog):
         if objects:
             self.createBTN.setEnabled(True)
             # Display texture information
-            for obj in objects:
-                objectWD = ktObjectWidget(name=obj, mainPath=folderPath)
+            #for obj in objects:
+            for obj in objects.values():
+                attributes = {key: value for key, value in vars(obj).items() if key != "textureMapping"}
+                newObject = ComponentMesh(**attributes)
+
+
+                objectWD = ktObjectWidget(obj=newObject, mainPath=folderPath)
                 self.objLYT.addWidget(objectWD)
                 self.objList.append(objectWD)
 
@@ -910,8 +982,8 @@ class ktVeggieImporter(QtWidgets.QDialog):
             lbl.setStyleSheet("background-color: #995D58; color: white; padding: 10px; font-weight: bold;")
             self.objLYT.addWidget(lbl)
 
-    def readObjectsFromFolder(self, folderPath):
-        objects = []
+    def readObjectsFromFolder(self, folderPath, objectClass=ComponentMesh):
+        objects = {}
         folderPath = self.verifyFolderPath(folderPath)
 
         try:
@@ -919,7 +991,26 @@ class ktVeggieImporter(QtWidgets.QDialog):
             for root, dirs, files in os.walk(folderPath):
                 for filename in files:
                     if filename.endswith((".abc")):  # Filter by file type
-                        objects.append(filename)
+
+                        # 1. Get the new name
+                        finalName = filename
+                        # 2. Save the name in the objects list
+                        
+                        if finalName not in objects:
+                                objects[finalName] = objectClass(name=finalName, mainPath=folderPath) 
+                        #objects.append(filename)
+
+                        # 3. Save the filepath in the list
+                        relativePath = os.path.relpath(root, folderPath)
+                        relativePath = relativePath.replace("\\", "/")
+
+                        if relativePath != ".":
+                            finalPath = relativePath + "/" + filename
+                        else:
+                            finalPath = filename
+
+                        setattr(objects[finalName], 'mainPath', finalPath) 
+
 
         except OSError as e:
             self.showMessageError(f"Error reading directory: {e}")
