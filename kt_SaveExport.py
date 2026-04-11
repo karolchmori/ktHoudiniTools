@@ -719,21 +719,12 @@ class ktVeggieImporter(QtWidgets.QDialog):
         self.rootPathBTN = hou.qt.NodeChooserButton()
         self.rootPathTXT.setText('/stage')
 
-        self.objPathTXT = QtWidgets.QLineEdit()
-        self.objPathTXT.setReadOnly(True)
-        self.objPathBTN = hou.qt.FileChooserButton()
-        self.objPathBTN.setFileChooserTitle("Please select a directory")
-        self.objPathBTN.setFileChooserMode(hou.fileChooserMode.Read)
-        self.objPathBTN.setFileChooserFilter(hou.fileType.Directory)
-
-
-        self.texPathTXT = QtWidgets.QLineEdit()
-        self.texPathTXT.setReadOnly(True)
-        self.texPathBTN = hou.qt.FileChooserButton()
-        self.texPathBTN.setFileChooserTitle("Please select a directory")
-        self.texPathBTN.setFileChooserMode(hou.fileChooserMode.Read)
-        self.texPathBTN.setFileChooserFilter(hou.fileType.Directory)
-
+        self.folderPathTXT = QtWidgets.QLineEdit()
+        self.folderPathTXT.setReadOnly(True)
+        self.folderPathBTN = hou.qt.FileChooserButton()
+        self.folderPathBTN.setFileChooserTitle("Please select a directory")
+        self.folderPathBTN.setFileChooserMode(hou.fileChooserMode.Read)
+        self.folderPathBTN.setFileChooserFilter(hou.fileType.Directory)
 
         self.selectAllCB = QtWidgets.QCheckBox()
         self.createBTN = QtWidgets.QPushButton("Create")
@@ -755,16 +746,10 @@ class ktVeggieImporter(QtWidgets.QDialog):
         
 
         """ Objects Path """
-        self.objPathLYT = QtWidgets.QHBoxLayout()
-        self.objPathLYT.addWidget(QtWidgets.QLabel('Object Path: '))
-        self.objPathLYT.addWidget(self.objPathTXT)
-        self.objPathLYT.addWidget(self.objPathBTN)
-
-        """ Texture Path """
-        self.texPathLYT = QtWidgets.QHBoxLayout()
-        self.texPathLYT.addWidget(QtWidgets.QLabel('Texture Path: '))
-        self.texPathLYT.addWidget(self.texPathTXT)
-        self.texPathLYT.addWidget(self.texPathBTN)
+        self.folderPathLYT = QtWidgets.QHBoxLayout()
+        self.folderPathLYT.addWidget(QtWidgets.QLabel('Folder Path: '))
+        self.folderPathLYT.addWidget(self.folderPathTXT)
+        self.folderPathLYT.addWidget(self.folderPathBTN)
 
         """ Execution"""
         self.execLYT = QtWidgets.QHBoxLayout()
@@ -809,8 +794,7 @@ class ktVeggieImporter(QtWidgets.QDialog):
 
         """ MAIN """
         self.mainLayout.addLayout(self.textureTypeLYT)
-        self.mainLayout.addLayout(self.objPathLYT)
-        self.mainLayout.addLayout(self.texPathLYT)
+        self.mainLayout.addLayout(self.folderPathLYT)
         self.mainLayout.addSpacing(25)
         self.mainLayout.addLayout(self.execLYT)
         self.mainLayout.addWidget(QtWidgets.QLabel('Objects'))
@@ -819,14 +803,14 @@ class ktVeggieImporter(QtWidgets.QDialog):
         self.mainLayout.addWidget(self.texScroll)
 
     def createConnections(self):
-        self.objPathBTN.fileSelected.connect(self.onClick_objPathBTN)
-        self.texPathBTN.fileSelected.connect(self.onClick_texPathBTN)
+        self.folderPathBTN.fileSelected.connect(self.onClick_folderPathBTN)
         self.rootPathBTN.nodeSelected.connect(self.onClick_rootPathBTN)
         self.createBTN.clicked.connect(self.onClick_createBTN)
         self.selectAllCB.clicked.connect(self.onChange_selectAllCB)
-    
 
-    def onClick_objPathBTN(self, filePath):
+#region UI
+
+    def onClick_folderPathBTN(self, filePath):
         """
         Handles folder selection and triggers texture loading.
 
@@ -834,21 +818,11 @@ class ktVeggieImporter(QtWidgets.QDialog):
             filePath (str): The selected folder path.
         """
         if filePath:
-            self.objPathTXT.setText(filePath)
-            if self.objPathTXT.text():
+            self.folderPathTXT.setText(filePath)
+            if self.folderPathTXT.text():
                 self.loadObjects()
-
-    def onClick_texPathBTN(self, filePath):
-        """
-        Handles folder selection and triggers texture loading.
-
-        Args:
-            filePath (str): The selected folder path.
-        """
-        if filePath:
-            self.texPathTXT.setText(filePath)
-            if self.texPathTXT.text():
                 self.loadTextures()
+                
 
     def onClick_rootPathBTN(self, node):
         """
@@ -861,19 +835,6 @@ class ktVeggieImporter(QtWidgets.QDialog):
         """
         if node:
             self.rootPathTXT.setText(str(node.path()))
-
-    def showMessageError(self, message):
-        """
-        Displays an error message dialog.
-
-        Args:
-            message (str): The error message to display.
-        """
-        msg = QtWidgets.QMessageBox()
-        msg.setIcon(QtWidgets.QMessageBox.Critical)
-        msg.setText("Error: " + message)
-        msg.setWindowTitle("Houdini Error")
-        msg.exec_()
 
 
     def onClick_createBTN(self):
@@ -904,10 +865,31 @@ class ktVeggieImporter(QtWidgets.QDialog):
         """
         if self.selectAllCB.isChecked():
             self.checkAllTextures()
+            self.checkAllObjects()
 
+    def checkAllTextures(self):
+        """
+        Selects or deselects all texture checkboxes based on the "Select All" state.
+        """
+        if self.texList:
+            for textureWD in self.texList:
+                textureWD.selectedCB.setChecked(self.selectAllCB.isChecked())
+    
+    def checkAllObjects(self):
+        """
+        Selects or deselects all texture checkboxes based on the "Select All" state.
+        """
+        if self.objList:
+            for objectWD in self.objList:
+                objectWD.selectedCB.setChecked(self.selectAllCB.isChecked())
+
+
+#endregion
+
+#region Objects
     def loadObjects(self):
         self.objList = []
-        folderPath = self.objPathTXT.text()
+        folderPath = self.folderPathTXT.text()
 
         objects = self.readObjectsFromFolder(folderPath)
 
@@ -943,7 +925,10 @@ class ktVeggieImporter(QtWidgets.QDialog):
             self.showMessageError(f"Error reading directory: {e}")
         
         return objects
+    
+#endregion
 
+#region Textures
 
     def loadTextures(self):
         """
@@ -955,7 +940,7 @@ class ktVeggieImporter(QtWidgets.QDialog):
         #self.clearLayout(self.texLYT)
         self.texList = []
 
-        folderPath = self.texPathTXT.text()
+        folderPath = self.folderPathTXT.text()
         regexPattern = r'^(?P<texName>[A-Za-z0-9]+)(?:_(?P<texType>[A-Za-z]+))?(\.[a-z0-9]+)$'
         textureType = "KarmaTexture"
         textureClass = globals().get(textureType)
@@ -1037,7 +1022,24 @@ class ktVeggieImporter(QtWidgets.QDialog):
             self.showMessageError(f"Error reading directory: {e}")
         
         return textures
-    
+
+#endregion 
+
+#region Utils
+
+    def showMessageError(self, message):
+        """
+        Displays an error message dialog.
+
+        Args:
+            message (str): The error message to display.
+        """
+        msg = QtWidgets.QMessageBox()
+        msg.setIcon(QtWidgets.QMessageBox.Critical)
+        msg.setText("Error: " + message)
+        msg.setWindowTitle("Houdini Error")
+        msg.exec_()
+
     def verifyFolderPath(self, folderPath):
         """
         Resolves environment variable prefixes in a folder path.
@@ -1071,14 +1073,9 @@ class ktVeggieImporter(QtWidgets.QDialog):
             finalPath = folderPath
 
         return finalPath
-    
-    def checkAllTextures(self):
-        """
-        Selects or deselects all texture checkboxes based on the "Select All" state.
-        """
-        if self.texList:
-            for textureWD in self.texList:
-                textureWD.selectedCB.setChecked(self.selectAllCB.isChecked())
+#endregion
+
+
 
 #endregion
 
