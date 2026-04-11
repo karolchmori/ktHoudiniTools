@@ -38,12 +38,7 @@ def exportComponentUSD(kwargs):
             #print(tempNode)
 
 
-def createComponentGeometry(kwargs):
-    hda = kwargs['node']
-    root = hda.node('/stage')
 
-    nodeComp = root.createNode('componentgeometry')
-    nodeAbc = nodeComp.createNode('alembic')
 
 #region Objects
 class Texture(object):
@@ -95,6 +90,8 @@ class Texture(object):
             "ambientOcclusion": {"label": "Ambient Occlusion", "abbreviation": "AO", "mapping": ["ao","ambientocclusion","ambientoclussion"]},
             "opacity": {"label": "Opacity", "abbreviation": "OP", "mapping": ["opacity"]},
         }
+
+
 
     
     def createTexture(self):
@@ -332,15 +329,17 @@ class KarmaTexture(Texture):
 
 class ComponentMesh(object):
 
-    def __init__(self, name, mainPath):
+    def __init__(self, name, mainPath, scale=None, file = None):
 
         self.name = name
         self.mainPath = mainPath
+        self.file = file
+        self.scale = scale
 
-    
-    def createComponent(self):
-        """Placeholder method for creating a texture object."""
-        pass
+        self.fieldMapping = {
+            "scale":{"label": "Scale", "type":"float"}
+        }
+
 
 
     def showInformation(self):
@@ -350,11 +349,85 @@ class ComponentMesh(object):
             print(f"{attribute}: {value}")
         print("-----------------------------------------")
 
+    def createComponent(self, parentNode, path):
+
+        def getFullPath(name, path):
+            return os.path.join(path, name) if name else None
+
+        compNode = parentNode.createNode('componentgeometry')
+
+        # Component Geometry
+        compGeoNode = compNode.node("sopnet/geo")
+
+        abcNode = compGeoNode.createNode('alembic')
+        abcNode.parm("fileName").set(getFullPath(self.file, path))
+
+        transNode = compGeoNode.createNode('xform')
+        transNode.parm("scale").set(self.scale)
+        transNode.setInput(0, abcNode)
+
+        defaultNode = compGeoNode.node('default')
+        defaultNode.setInput(0, transNode)
+
+        unpackNode = compGeoNode.createNode('unpack')
+        unpackNode.setInput(0, transNode)
+
+        wrapNode = compGeoNode.createNode('shrinkwrap::2.0')
+        wrapNode.setInput(0, unpackNode)
+        
+        colorNode = compGeoNode.createNode('color')
+        colorNode.setInput(0, wrapNode)
+
+        proxyNode = compGeoNode.node('proxy')
+        proxyNode.setInput(0, colorNode)
+
+        compGeoNode.layoutChildren()
+
+        # 
+
 
 
 #endregion
 
 #region Widget
+class ktDataRowWidget(QtWidgets.QWidget):
+    def __init__(self, label):
+        """Creates a horizontal widget that contains a label, text field and button.
+
+        Args:
+            label (str): _description_
+            fileType (hou.fileType, optional): Type of file Type that the selection is going to filter. Defaults to hou.fileType.Image.
+            mainPath (str, optional): Folder Path selected by the user. Defaults to None.
+        """
+        super().__init__()
+
+        self.label = label
+
+        self.initUI()
+
+    def initUI(self):
+        """Set up the layout, label, text field and button."""
+        layout = QtWidgets.QHBoxLayout(self)
+
+        lbl = QtWidgets.QLabel(self.label)
+        self.txt = QtWidgets.QLineEdit()
+
+        # Add widgets to the layout
+        layout.addWidget(lbl)
+        layout.addWidget(self.txt)
+
+
+        layout.setSpacing(5)  # Remove internal spacing
+        layout.setContentsMargins(5, 0, 5, 0)  # Remove margins around the layout
+
+        self.setLayout(layout)
+
+    
+    def validateData(self):
+        # Detect if its int, float, or string
+        pass
+
+
 class ktFileRowWidget(QtWidgets.QWidget):
     def __init__(self, label, fileType=hou.fileType.Image, mainPath=None):
         """Creates a horizontal widget that contains a label, text field and button.
@@ -644,8 +717,13 @@ class ktObjectWidget(QtWidgets.QWidget):
 
         self.collapsibleRows = []
         
-        rowWidget = ktFileRowWidget(label='File', mainPath=self.mainPath)
-        self.collapsibleRows.append(rowWidget)
+        self.fileWidget = ktFileRowWidget(label='File', mainPath=self.mainPath)
+        self.colorField = hou.qt.ColorField()
+        self.scaleWidget = ktDataRowWidget(label='Scale')
+        #colorBTN.setColor(hou.Color((1.0, 0.0, 0.0)))
+
+
+
 
         self.visibilityBTN = QtWidgets.QPushButton() 
         #https://houdini-icons.dev/
@@ -701,9 +779,9 @@ class ktObjectWidget(QtWidgets.QWidget):
         """)
         
         # Add texture input widgets dynamically
-        for row in self.collapsibleRows:
-            if row:
-                self.informationLYT.addWidget(row)
+        self.informationLYT.addWidget(self.fileWidget)
+        self.informationLYT.addWidget(self.colorField)
+        self.informationLYT.addWidget(self.scaleWidget)
 
         #self.mainLayout.addLayout(self.headerLYT)
         self.mainLayout.addWidget(self.headerGB)
@@ -718,6 +796,9 @@ class ktObjectWidget(QtWidgets.QWidget):
         and updates checkboxes based on existing data.
         """
         self.nameTXT.setText(self.obj.name)
+        self.fileWidget.txt.setText(self.obj.file)
+        self.scaleWidget.txt.setText(self.obj.scale)
+
 
     def toggleVisibility(self):
         """Toggle the visibility of the texture rows using the visibility flag."""
@@ -728,8 +809,6 @@ class ktObjectWidget(QtWidgets.QWidget):
 
 
 #endregion
-
-
 
 
 
@@ -914,13 +993,20 @@ class ktVeggieImporter(QtWidgets.QDialog):
         parentNode = hou.node(self.rootPathTXT.text())
         
         if parentNode:
-            folderPath = self.texPathTXT.text() 
+            folderPath = self.folderPathTXT.text() 
+
+            for obj in self.objList:
+                if obj.selectedCB.isChecked():
+                    obj.obj.createComponent(parentNode, folderPath)
+
+
+            '''
             for tex in self.texList:
                 #tex = ktTextureWidget() # type: ktTextureWidget
                 if tex.selectedCB.isChecked():
                     tex.texture.createTexture(parentNode, folderPath)
-
-            parentNode.layoutChildren()
+            '''
+            #parentNode.layoutChildren()
         else:
             self.showMessageError("A material Library needs to be selected")
 
@@ -965,10 +1051,9 @@ class ktVeggieImporter(QtWidgets.QDialog):
             # Display texture information
             #for obj in objects:
             for obj in objects.values():
-                attributes = {key: value for key, value in vars(obj).items() if key != "textureMapping"}
+                attributes = {key: value for key, value in vars(obj).items() if key != "fieldMapping"}
                 newObject = ComponentMesh(**attributes)
-
-
+                newObject.showInformation()
                 objectWD = ktObjectWidget(obj=newObject, mainPath=folderPath)
                 self.objLYT.addWidget(objectWD)
                 self.objList.append(objectWD)
@@ -993,7 +1078,8 @@ class ktVeggieImporter(QtWidgets.QDialog):
                     if filename.endswith((".abc")):  # Filter by file type
 
                         # 1. Get the new name
-                        finalName = filename
+                        parts = filename.split('.')
+                        finalName = parts[0]
                         # 2. Save the name in the objects list
                         
                         if finalName not in objects:
@@ -1009,7 +1095,9 @@ class ktVeggieImporter(QtWidgets.QDialog):
                         else:
                             finalPath = filename
 
-                        setattr(objects[finalName], 'mainPath', finalPath) 
+                        setattr(objects[finalName], 'mainPath', folderPath) 
+                        setattr(objects[finalName], 'scale', '0.7') 
+                        setattr(objects[finalName], 'file', finalPath) 
 
 
         except OSError as e:
