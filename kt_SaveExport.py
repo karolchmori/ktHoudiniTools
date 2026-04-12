@@ -8,16 +8,7 @@ try:
 except ImportError:
     from PySide2 import QtCore, QtWidgets, QtGui
 
-def getAllNodes(node, nodeList = None, level = 0):
-    if nodeList is None:
-        nodeList = []
-    #print(" " * level + node.name())
-    nodeList.append(node.path())
 
-    for child in node.children():
-        getAllNodes(child, nodeList, level + 1)
-
-    return nodeList
 
 def exportComponentUSD(kwargs):
     '''
@@ -37,7 +28,16 @@ def exportComponentUSD(kwargs):
             tempNode.parm("execute").pressButton()
             #print(tempNode)
 
+def getAllNodes(node, nodeList = None, level = 0):
+    if nodeList is None:
+        nodeList = []
+    #print(" " * level + node.name())
+    nodeList.append(node.path())
 
+    for child in node.children():
+        getAllNodes(child, nodeList, level + 1)
+
+    return nodeList
 
 
 #region Objects
@@ -398,8 +398,28 @@ class ComponentMesh(object):
         self.compOutNode.setInput(0, compMatNode)
 
     def connectTextures(self):
+        fileName = self.file.split(".")[0]
+
+        # 1. Get the path
+        primPath = f'/ASSET/geo/render/{fileName}/'
+        texPath = self.materialLibrary.parm("matpathprefix").eval() #/ASSET/mtl/
+    
+        # 2. Get all the textures inside the material library
+        texList = []
+        for child in self.materialLibrary.children():
+            texList.append(child.path())
+
+        for tex in texList:
+            texName = tex.split("/")[-1]
+            newPrim = f"{primPath}{texName}/{texName}_Shape"
+            newMat = f"{texPath}{texName}"
+
+            print(f"PRIM:  {newPrim}")
+            print(f"MAT:  {newMat}")
+
+        # 3. Assign materials to Component Material
         
-        pass
+        
 
 
 #endregion
@@ -1022,13 +1042,8 @@ class ktVeggieImporter(QtWidgets.QDialog):
 
                         materialNode.layoutChildren()
 
+                    objItem.obj.connectTextures()
 
-            '''
-            for tex in self.texList:
-                #tex = ktTextureWidget() # type: ktTextureWidget
-                if tex.selectedCB.isChecked():
-                    tex.texture.createTexture(parentNode, folderPath)
-            '''
             #parentNode.layoutChildren()
         else:
             self.showMessageError("A material Library needs to be selected")
