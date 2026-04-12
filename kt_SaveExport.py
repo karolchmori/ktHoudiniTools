@@ -329,12 +329,15 @@ class KarmaTexture(Texture):
 
 class ComponentMesh(object):
 
-    def __init__(self, name, mainPath, scale=None, file = None):
+    def __init__(self, name, mainPath, scale=None, file = None, materialLibrary = None, compOutNode=None, compMatNode = None):
 
         self.name = name
         self.mainPath = mainPath
         self.file = file
         self.scale = scale
+        self.materialLibrary = materialLibrary
+        self.compOutNode = compOutNode
+        self.compMatNode = compMatNode
 
         self.fieldMapping = {
             "scale":{"label": "Scale", "type":"float"}
@@ -354,9 +357,10 @@ class ComponentMesh(object):
         def getFullPath(name, path):
             return os.path.join(path, name) if name else None
 
-        compNode = parentNode.createNode('componentgeometry')
-
         # Component Geometry
+        compNode = parentNode.createNode('componentgeometry')
+        #compNode.parm("authortimesamples").set()
+        
         compGeoNode = compNode.node("sopnet/geo")
 
         abcNode = compGeoNode.createNode('alembic')
@@ -383,8 +387,19 @@ class ComponentMesh(object):
 
         compGeoNode.layoutChildren()
 
-        # 
+        # Component Material
+        compMatNode = parentNode.createNode('componentmaterial')
+        compMatNode.setInput(0, compNode)
+        compMatNode.parm("addmateriallibrary").pressButton()
+        self.materialLibrary = compMatNode.input(1)
 
+        # Component Output
+        self.compOutNode = parentNode.createNode('componentoutput')
+        self.compOutNode.setInput(0, compMatNode)
+
+    def connectTextures(self):
+        
+        pass
 
 
 #endregion
@@ -908,7 +923,7 @@ class ktVeggieImporter(QtWidgets.QDialog):
 
         """ OBJECT CONTAINER """
         self.objScroll = QtWidgets.QScrollArea()             # Scroll Area which contains the widgets, set as the centralWidget
-        self.objScroll.setFixedHeight(200)
+        self.objScroll.setFixedHeight(300)
         self.objContainer = QtWidgets.QWidget()                 # Widget that contains the collection of Vertical Box
         self.objLYT = QtWidgets.QVBoxLayout()               # The Vertical Box that contains the Horizontal Boxes of  labels and buttons
         self.objLYT.setContentsMargins(0, 0, 0, 0)
@@ -995,9 +1010,17 @@ class ktVeggieImporter(QtWidgets.QDialog):
         if parentNode:
             folderPath = self.folderPathTXT.text() 
 
-            for obj in self.objList:
-                if obj.selectedCB.isChecked():
-                    obj.obj.createComponent(parentNode, folderPath)
+            for objItem in self.objList:
+                if objItem.selectedCB.isChecked():
+                    objItem.obj.createComponent(parentNode, folderPath)
+                    materialNode = objItem.obj.materialLibrary
+                    if materialNode:
+                        for tex in self.texList:
+                            #tex = ktTextureWidget() # type: ktTextureWidget
+                            if tex.selectedCB.isChecked():
+                                tex.texture.createTexture(materialNode, folderPath)
+
+                        materialNode.layoutChildren()
 
 
             '''
