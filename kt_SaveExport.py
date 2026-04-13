@@ -343,6 +343,21 @@ class ComponentMesh(object):
             "scale":{"label": "Scale", "type":"float"}
         }
 
+    def getTypeFromAttr(self, label, text):
+        """
+        Determines the texture type based on a given attribute and text mapping.
+
+        Args:
+            attr (str): The attribute name to check within the texture mapping.
+            text (str): The text used to identify the corresponding texture type.
+
+        Returns:
+            str or None: The parent texture type if found, otherwise None.
+        """
+        for parent, children in self.fieldMapping.items():
+            if text in children[label]:
+                return parent
+        return None
 
 
     def showInformation(self):
@@ -388,14 +403,14 @@ class ComponentMesh(object):
         compGeoNode.layoutChildren()
 
         # Component Material
-        compMatNode = parentNode.createNode('componentmaterial')
-        compMatNode.setInput(0, compNode)
-        compMatNode.parm("addmateriallibrary").pressButton()
-        self.materialLibrary = compMatNode.input(1)
+        self.compMatNode = parentNode.createNode('componentmaterial')
+        self.compMatNode.setInput(0, compNode)
+        self.compMatNode.parm("addmateriallibrary").pressButton()
+        self.materialLibrary = self.compMatNode.input(1)
 
         # Component Output
-        self.compOutNode = parentNode.createNode('componentoutput')
-        self.compOutNode.setInput(0, compMatNode)
+        self.compOutNode = parentNode.createNode('componentoutput', self.name)
+        self.compOutNode.setInput(0, self.compMatNode)
 
     def connectTextures(self):
         fileName = self.file.split(".")[0]
@@ -405,19 +420,27 @@ class ComponentMesh(object):
         texPath = self.materialLibrary.parm("matpathprefix").eval() #/ASSET/mtl/
     
         # 2. Get all the textures inside the material library
-        texList = []
-        for child in self.materialLibrary.children():
-            texList.append(child.path())
+        texList = [child.path() for child in self.materialLibrary.children()]
+        matAssignList = []
 
         for tex in texList:
             texName = tex.split("/")[-1]
             newPrim = f"{primPath}{texName}/{texName}_Shape"
             newMat = f"{texPath}{texName}"
 
-            print(f"PRIM:  {newPrim}")
-            print(f"MAT:  {newMat}")
+            matAssignList.append((newPrim, newMat))
 
-        # 3. Assign materials to Component Material
+            #print(f"PRIM:  {newPrim}")
+            #print(f"MAT:  {newMat}")
+
+        # 3. Assign materials to Component Material, depending on the amount of elements
+        compMat = self.compMatNode 
+
+        compMat.parm("nummaterials").set(len(matAssignList))
+
+        for i, (prim, mat) in enumerate(matAssignList, start=1):
+            compMat.parm(f"primpattern{i}").set(prim)
+            compMat.parm(f"matspecpath{i}").set(mat)
         
         
 
@@ -748,11 +771,10 @@ class ktObjectWidget(QtWidgets.QWidget):
         """
         self.selectedCB = QtWidgets.QCheckBox()
         self.nameTXT = QtWidgets.QLineEdit()
-        self.nameTXT.setReadOnly(True)
 
         self.collapsibleRows = []
         
-        self.fileWidget = ktFileRowWidget(label='File', mainPath=self.mainPath)
+        self.fileWidget = ktFileRowWidget(label='File', mainPath=self.mainPath, fileType=hou.fileType.Alembic)
         self.colorField = hou.qt.ColorField()
         self.scaleWidget = ktDataRowWidget(label='Scale')
         #colorBTN.setColor(hou.Color((1.0, 0.0, 0.0)))
@@ -813,7 +835,7 @@ class ktObjectWidget(QtWidgets.QWidget):
             QGroupBox::title { color: white; }
         """)
         
-        # Add texture input widgets dynamically
+        #
         self.informationLYT.addWidget(self.fileWidget)
         self.informationLYT.addWidget(self.colorField)
         self.informationLYT.addWidget(self.scaleWidget)
@@ -823,7 +845,35 @@ class ktObjectWidget(QtWidgets.QWidget):
         self.mainLayout.addWidget(self.informationGB)
 
     def createConnections(self):
+        self.nameTXT.textChanged.connect(lambda text: self.updateInformation('name', text, None))
+        self.fileWidget.txt.textChanged.connect(lambda text: self.updateInformation('file', text, None))
+        self.scaleWidget.txt.textChanged.connect(lambda text: self.updateInformation('Scale', text, None))
+
+        
+
         self.visibilityBTN.clicked.connect(self.toggleVisibility)
+
+    
+    def updateInformation(self, fieldProperty, text, checkbox):
+        """
+        Updates the texture object based on user input.
+
+        Args:
+            textureProperty (str): The texture property being modified.
+            text (str): The new value entered by the user.
+            checkbox (QCheckBox, optional): The checkbox linked to this property, updated accordingly.
+        """
+        if fieldProperty == 'name':
+            fieldType = 'name'
+        elif fieldProperty == 'file':
+            fieldType = 'file'
+        else:
+            fieldType = self.obj.getTypeFromAttr("label", fieldProperty)
+
+        setattr(self.obj, str(fieldType), text.strip())  # Update the corresponding texture property
+
+        if checkbox:
+            checkbox.setChecked(bool(text.strip()))  # Set the checkbox status
 
     def loadInformation(self):
         """
@@ -1043,6 +1093,7 @@ class ktVeggieImporter(QtWidgets.QDialog):
                         materialNode.layoutChildren()
 
                     objItem.obj.connectTextures()
+                    #objItem.obj.showInformation()
 
             #parentNode.layoutChildren()
         else:
@@ -1091,7 +1142,7 @@ class ktVeggieImporter(QtWidgets.QDialog):
             for obj in objects.values():
                 attributes = {key: value for key, value in vars(obj).items() if key != "fieldMapping"}
                 newObject = ComponentMesh(**attributes)
-                newObject.showInformation()
+                
                 objectWD = ktObjectWidget(obj=newObject, mainPath=folderPath)
                 self.objLYT.addWidget(objectWD)
                 self.objList.append(objectWD)
