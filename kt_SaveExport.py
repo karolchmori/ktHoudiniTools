@@ -281,19 +281,17 @@ class KarmaTexture(Texture):
             baseColorNode = materialBuilderNode.createNode(imageType, f"{self.name}_BC")
             baseColorNode.parm("file").set(getFullPath(self.baseColor, path))
             baseColorNode.parm("signature").set("color3")
+            colorCorrNode = materialBuilderNode.createNode("mtlxcolorcorrect", f"{self.name}_CC")
+            colorCorrNode.setNamedInput("in1", baseColorNode, "out")
+            standardSurfaceNode.setNamedInput("base_color", colorCorrNode, "out")
 
-            if self.ambientOcclusion:
-                ambientOcclusionNode = materialBuilderNode.createNode(imageType, f"{self.name}_AO")
-                ambientOcclusionNode.parm("file").set(getFullPath(self.ambientOcclusion, path))
-                ambientOcclusionNode.parm("signature").set("default")
-                multiplyNode = materialBuilderNode.createNode("mtlxmultiply", f"{self.name}_Multi")
-                multiplyNode.setNamedInput("in1", baseColorNode, "out")
-                multiplyNode.setNamedInput("in2", ambientOcclusionNode, "out")
+        if self.ambientOcclusion:
+            ambientOcclusionNode = materialBuilderNode.createNode(imageType, f"{self.name}_AO")
+            ambientOcclusionNode.parm("file").set(getFullPath(self.ambientOcclusion, path))
+            ambientOcclusionNode.parm("signature").set("color3")
 
-                standardSurfaceNode.setNamedInput("base_color", multiplyNode, "out")
-            else:
-                standardSurfaceNode.setNamedInput("base_color", baseColorNode, "out")
- 
+            standardSurfaceNode.setNamedInput("base", ambientOcclusionNode, "out")
+
         if self.metalness:
             metalnessNode = materialBuilderNode.createNode(imageType, f"{self.name}_M")
             metalnessNode.parm("file").set(getFullPath(self.metalness, path))
@@ -374,7 +372,10 @@ class ComponentMesh(object):
 
         # Component Geometry
         compNode = parentNode.createNode('componentgeometry')
-        #compNode.parm("authortimesamples").set()
+        compNode.parm("authortimesamples").set('auto')
+        #parm = compNode.parm("authortimesamples")
+        #print(parm.menuItems())   # internal values (tokens)
+        #print(parm.menuLabels())
         
         compGeoNode = compNode.node("sopnet/geo")
 
@@ -410,7 +411,15 @@ class ComponentMesh(object):
 
         # Component Output
         self.compOutNode = parentNode.createNode('componentoutput', self.name)
+        self.compOutNode.parm("lopoutput").set(f'{path}Export/`chs("name")`/`chs("filename")`')
+
+        #self.compOutNode.parm("localizesubdir").set(f'{hou.getenv("HIP")}/usd/textures')
+
+        self.compOutNode.parm("localizesubdir").set(f'{hou.expandString(path)}usd/textures')
+
         self.compOutNode.setInput(0, self.compMatNode)
+
+
 
     def connectTextures(self):
         fileName = self.file.split(".")[0]
