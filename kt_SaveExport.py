@@ -324,22 +324,16 @@ class KarmaTexture(Texture):
 
         return materialBuilderNode
 
-
 class ComponentMesh(object):
 
-    def __init__(self, name, mainPath, scale=None, file = None, materialLibrary = None, compOutNode=None, compMatNode = None):
+    def __init__(self, name, mainPath, file = None, materialLibrary = None, compOutNode=None, compMatNode = None):
 
         self.name = name
         self.mainPath = mainPath
         self.file = file
-        self.scale = scale
         self.materialLibrary = materialLibrary
         self.compOutNode = compOutNode
         self.compMatNode = compMatNode
-
-        self.fieldMapping = {
-            "scale":{"label": "Scale", "type":"float"}
-        }
 
     def getTypeFromAttr(self, label, text):
         """
@@ -373,10 +367,7 @@ class ComponentMesh(object):
         # Component Geometry
         compNode = parentNode.createNode('componentgeometry')
         compNode.parm("authortimesamples").set('auto')
-        #parm = compNode.parm("authortimesamples")
-        #print(parm.menuItems())   # internal values (tokens)
-        #print(parm.menuLabels())
-        
+
         compGeoNode = compNode.node("sopnet/geo")
 
         abcNode = compGeoNode.createNode('alembic')
@@ -457,43 +448,6 @@ class ComponentMesh(object):
 #endregion
 
 #region Widget
-class ktDataRowWidget(QtWidgets.QWidget):
-    def __init__(self, label):
-        """Creates a horizontal widget that contains a label, text field and button.
-
-        Args:
-            label (str): _description_
-            fileType (hou.fileType, optional): Type of file Type that the selection is going to filter. Defaults to hou.fileType.Image.
-            mainPath (str, optional): Folder Path selected by the user. Defaults to None.
-        """
-        super().__init__()
-
-        self.label = label
-
-        self.initUI()
-
-    def initUI(self):
-        """Set up the layout, label, text field and button."""
-        layout = QtWidgets.QHBoxLayout(self)
-
-        lbl = QtWidgets.QLabel(self.label)
-        self.txt = QtWidgets.QLineEdit()
-
-        # Add widgets to the layout
-        layout.addWidget(lbl)
-        layout.addWidget(self.txt)
-
-
-        layout.setSpacing(5)  # Remove internal spacing
-        layout.setContentsMargins(5, 0, 5, 0)  # Remove margins around the layout
-
-        self.setLayout(layout)
-
-    
-    def validateData(self):
-        # Detect if its int, float, or string
-        pass
-
 
 class ktFileRowWidget(QtWidgets.QWidget):
     def __init__(self, label, fileType=hou.fileType.Image, mainPath=None):
@@ -784,12 +738,6 @@ class ktObjectWidget(QtWidgets.QWidget):
         self.collapsibleRows = []
         
         self.fileWidget = ktFileRowWidget(label='File', mainPath=self.mainPath, fileType=hou.fileType.Alembic)
-        self.colorField = hou.qt.ColorField()
-        self.scaleWidget = ktDataRowWidget(label='Scale')
-        #colorBTN.setColor(hou.Color((1.0, 0.0, 0.0)))
-
-
-
 
         self.visibilityBTN = QtWidgets.QPushButton() 
         #https://houdini-icons.dev/
@@ -846,8 +794,6 @@ class ktObjectWidget(QtWidgets.QWidget):
         
         #
         self.informationLYT.addWidget(self.fileWidget)
-        self.informationLYT.addWidget(self.colorField)
-        self.informationLYT.addWidget(self.scaleWidget)
 
         #self.mainLayout.addLayout(self.headerLYT)
         self.mainLayout.addWidget(self.headerGB)
@@ -856,9 +802,6 @@ class ktObjectWidget(QtWidgets.QWidget):
     def createConnections(self):
         self.nameTXT.textChanged.connect(lambda text: self.updateInformation('name', text, None))
         self.fileWidget.txt.textChanged.connect(lambda text: self.updateInformation('file', text, None))
-        self.scaleWidget.txt.textChanged.connect(lambda text: self.updateInformation('Scale', text, None))
-
-        
 
         self.visibilityBTN.clicked.connect(self.toggleVisibility)
 
@@ -876,8 +819,6 @@ class ktObjectWidget(QtWidgets.QWidget):
             fieldType = 'name'
         elif fieldProperty == 'file':
             fieldType = 'file'
-        else:
-            fieldType = self.obj.getTypeFromAttr("label", fieldProperty)
 
         setattr(self.obj, str(fieldType), text.strip())  # Update the corresponding texture property
 
@@ -891,7 +832,6 @@ class ktObjectWidget(QtWidgets.QWidget):
         """
         self.nameTXT.setText(self.obj.name)
         self.fileWidget.txt.setText(self.obj.file)
-        self.scaleWidget.txt.setText(self.obj.scale)
 
 
     def toggleVisibility(self):
@@ -1002,7 +942,7 @@ class ktVeggieImporter(QtWidgets.QDialog):
 
         """ OBJECT CONTAINER """
         self.objScroll = QtWidgets.QScrollArea()             # Scroll Area which contains the widgets, set as the centralWidget
-        self.objScroll.setFixedHeight(300)
+        self.objScroll.setFixedHeight(400)
         self.objContainer = QtWidgets.QWidget()                 # Widget that contains the collection of Vertical Box
         self.objLYT = QtWidgets.QVBoxLayout()               # The Vertical Box that contains the Horizontal Boxes of  labels and buttons
         self.objLYT.setContentsMargins(0, 0, 0, 0)
@@ -1194,7 +1134,6 @@ class ktVeggieImporter(QtWidgets.QDialog):
                             finalPath = filename
 
                         setattr(objects[finalName], 'mainPath', folderPath) 
-                        setattr(objects[finalName], 'scale', '0.7') 
                         setattr(objects[finalName], 'file', finalPath) 
 
 
