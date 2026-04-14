@@ -282,7 +282,7 @@ class KarmaTexture(Texture):
             baseColorNode.parm("file").set(getFullPath(self.baseColor, path))
             baseColorNode.parm("signature").set("color3")
             colorCorrNode = materialBuilderNode.createNode("mtlxcolorcorrect", f"{self.name}_CC")
-            colorCorrNode.setNamedInput("in1", baseColorNode, "out")
+            colorCorrNode.setNamedInput("in", baseColorNode, "out")
             standardSurfaceNode.setNamedInput("base_color", colorCorrNode, "out")
 
         if self.ambientOcclusion:
@@ -359,7 +359,7 @@ class ComponentMesh(object):
             print(f"{attribute}: {value}")
         print("-----------------------------------------")
 
-    def createComponent(self, parentNode, path):
+    def createComponent(self, parentNode, path, scale, color):
 
         def getFullPath(name, path):
             return os.path.join(path, name) if name else None
@@ -374,7 +374,7 @@ class ComponentMesh(object):
         abcNode.parm("fileName").set(getFullPath(self.file, path))
 
         transNode = compGeoNode.createNode('xform')
-        transNode.parm("scale").set(self.scale)
+        transNode.parm("scale").set(scale)
         transNode.setInput(0, abcNode)
 
         defaultNode = compGeoNode.node('default')
@@ -387,6 +387,10 @@ class ComponentMesh(object):
         wrapNode.setInput(0, unpackNode)
         
         colorNode = compGeoNode.createNode('color')
+        r, g, b = color.rgb()
+        colorNode.parm("colorr").set(r)
+        colorNode.parm("colorg").set(g)
+        colorNode.parm("colorb").set(b)
         colorNode.setInput(0, wrapNode)
 
         proxyNode = compGeoNode.node('proxy')
@@ -840,7 +844,217 @@ class ktObjectWidget(QtWidgets.QWidget):
         self.informationGB.setVisible(self.visibility)
         self.visibilityBTN.setIcon(self.iconExpanded if self.visibility else self.iconCollapsed)
 
+class ktRangeSlider(QtWidgets.QWidget):
+    # Define a custom signal to notify when the value changes
+    valueChangedEvent = QtCore.Signal(float)
 
+    def __init__(self, textWidth=60, sliderWidth=150, devValue=0, minValue=0, maxValue=10, showValueField=True, showMinMaxField=True, stepSize=1, enabled=True):
+        super().__init__()
+
+        """
+        Variables definition
+        """
+        self.textWidth = textWidth
+        self.sliderWidth = sliderWidth
+        self.devValue = devValue
+        self.minValue = minValue
+        self.maxValue = maxValue
+        self.showValueField = showValueField
+        self.showMinMaxField = showMinMaxField
+        self.stepSize = stepSize
+        self.enabled = enabled
+        
+        """
+        UI Creation
+        """
+        self.createWidgets()
+        self.createLayouts()
+        self.createConnections()
+
+        houdiniStyle = """
+            /* Main Widget Background */
+            QWidget {
+                color: #dfdfdf;
+                font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+                font-size: 14px;
+            }
+
+            /* Houdini Style SpinBoxes */
+            QDoubleSpinBox {
+                border: 1px solid #1a1a1a;
+                border-radius: 2px;
+                padding: 2px 4px;
+                selection-background-color: #d18c3b; /* Houdini orange highlight */
+            }
+
+            QDoubleSpinBox:focus {
+                border: 1px solid #DEAE6F;
+            }
+
+            /* Hide the up/down buttons for a cleaner Houdini parameter look */
+            QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
+                width: 0px; 
+                border: none;
+            }
+
+            /* Houdini Style Slider */
+            QSlider::groove:horizontal {
+                border: 1px solid #1a1a1a;
+                height: 4px;
+                background: #222222;
+                border-radius: 2px;
+            }
+
+            /* The filled part of the slider */
+            QSlider::sub-page:horizontal {
+                background: #004A98;
+                border-radius: 1px;
+            }
+
+            /* The slider handle */
+            QSlider::handle:horizontal {
+                background: #6b6b6b;
+                border: 1px solid #1a1a1a;
+                width: 10px;
+                margin-top: -13px;
+                margin-bottom: -13px;
+                border-radius: 2px;
+            }
+
+            QSlider::handle:horizontal:hover {
+                background: #888888;
+            }
+        """
+
+        self.setStyleSheet(houdiniStyle)
+
+    def createWidgets(self):
+        # Scaling factor to allow fractional precision (not modifiable pre=2)
+        self.scaleFactor = 100 
+        
+        # Scale values to integers
+        self.minValueScaled = int(self.minValue * self.scaleFactor)
+        self.maxValueScaled = int(self.maxValue * self.scaleFactor)
+        self.stepSizeScaled = int(self.stepSize * self.scaleFactor)
+        self.devValueScaled = int(self.devValue * self.scaleFactor)
+
+        
+        self.slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.slider.setRange(self.minValueScaled, self.maxValueScaled)
+        self.slider.setValue(self.devValueScaled)
+        self.slider.setFixedWidth(self.sliderWidth)
+        self.slider.setTickInterval(self.stepSizeScaled)
+        self.slider.setSingleStep(self.stepSizeScaled)
+
+        # Create QDoubleSpinBox for min and max
+        self.minField = QtWidgets.QDoubleSpinBox()
+        self.minField.setFixedWidth(self.textWidth)
+        self.minField.setValue(self.minValue)
+        self.minField.setSingleStep(self.stepSize)
+
+        self.maxField = QtWidgets.QDoubleSpinBox()
+        self.maxField.setFixedWidth(self.textWidth)
+        self.maxField.setValue(self.maxValue)
+        self.maxField.setSingleStep(self.stepSize)
+
+        # Create QDoubleSpinBox for the slider's value
+        self.valueField = QtWidgets.QDoubleSpinBox()
+        self.valueField.setRange(self.minValue, self.maxValue)
+        self.valueField.setFixedWidth(self.textWidth)
+        self.valueField.setSingleStep(self.stepSize)
+        self.valueField.setValue(self.slider.value() / self.scaleFactor)
+        
+        self.setEnabled(self.enabled)
+
+    def createLayouts(self):
+        mainLayout = QtWidgets.QHBoxLayout(self)
+        mainLayout.setContentsMargins(0, 0, 0, 0)
+
+        if self.showValueField:
+            mainLayout.addWidget(self.valueField)
+        
+        mainLayout.addWidget(self.slider)
+
+        if self.showMinMaxField:
+            mainLayout.addWidget(self.minField)
+            mainLayout.addWidget(self.maxField)
+
+    def createConnections(self):
+        """When values change update the widgets with the functions innit"""
+        self.slider.valueChanged.connect(self.__onSliderValueChanged)
+        self.minField.valueChanged.connect(self.__setMinSlider)
+        self.maxField.valueChanged.connect(self.__setMaxSlider)
+        self.valueField.valueChanged.connect(self.__setSliderValue)
+    
+
+    def setEnabled(self, enabled):
+
+        self.slider.setEnabled(enabled)
+        self.minField.setEnabled(enabled)
+        self.maxField.setEnabled(enabled)
+        self.valueField.setEnabled(enabled)
+
+    def setMinValue(self, value):
+        self.minField.setValue(value)
+        self.setMinSlider()
+    
+    def setMaxValue(self, value):
+        self.maxField.setValue(value)
+        self.setMaxSlider()
+    
+    def setValueField(self, value):
+        self.valueField.setValue(value)
+
+    def __onSliderValueChanged(self):
+        """This function will be called whenever the slider value changes, and will 
+            emit a custom signal when the slider value changes"""
+        self.valueField.setValue(self.slider.value() / self.scaleFactor)
+        self.valueChangedEvent.emit(self.valueField.value())
+        #print(f"Slider value changed: {value}")
+
+    def __setMinSlider(self):
+        """Update the slider's minimum value based on the input."""
+        self.minValueScaled = int(self.minField.value() * self.scaleFactor)
+
+        """If the min value is smaller than max then update it, otherwise revert it"""
+        if self.minValueScaled < self.maxValueScaled:
+            self.slider.setMinimum(self.minValueScaled)
+            self.valueField.setMinimum(self.slider.minimum() / self.scaleFactor)
+        else:
+            self.minField.setValue(self.slider.minimum() / self.scaleFactor)
+        
+        # Force UI refresh
+        self.slider.update()
+        self.slider.repaint()
+
+    def __setMaxSlider(self):
+        """Update the slider's maximum value based on the input."""
+        self.maxValueScaled = int(self.maxField.value() * self.scaleFactor)
+
+        """If the max value is bigger than min then update it, otherwise revert it"""
+        if self.maxValueScaled > self.minValueScaled:
+            self.slider.setMaximum(self.maxValueScaled)
+            self.valueField.setMaximum(self.slider.maximum() / self.scaleFactor)
+        else:
+            self.maxField.setValue(self.slider.maximum() / self.scaleFactor)
+        
+        # Force UI refresh
+        self.slider.update()
+        self.slider.repaint()
+
+    def __setSliderValue(self):
+        """Update the slider's value when the spinbox value changes."""
+        self.slider.setValue(int(self.valueField.value() * self.scaleFactor))
+    
+    def getValue(self):
+        return self.slider.value() / self.scaleFactor
+    
+    def getMinValue(self):
+        return self.minField.value()
+    
+    def getMaxValue(self):
+        return self.maxField.value()
+    
 
 #endregion
 
@@ -860,15 +1074,6 @@ def getHoudiniMainWindow():
 
 class ktVeggieImporter(QtWidgets.QDialog):
     def __init__(self, parent=getHoudiniMainWindow()):
-        """
-        Initializes the ktTextureImporter dialog.
-
-        This constructor sets up the dialog window, initializes UI elements, 
-        and establishes connections between widgets and their event handlers.
-
-        Args:
-            parent (QWidget, optional): The parent widget, defaulting to the Houdini main window.
-        """
         super(ktVeggieImporter, self).__init__(parent)
         
         self.setWindowTitle('kt_VeggieImporter')
@@ -906,6 +1111,9 @@ class ktVeggieImporter(QtWidgets.QDialog):
         self.folderPathBTN.setFileChooserMode(hou.fileChooserMode.Read)
         self.folderPathBTN.setFileChooserFilter(hou.fileType.Directory)
 
+        self.colorBTN = hou.qt.ColorField()
+        self.scaleSLD = ktRangeSlider(devValue=1, minValue=0.01, maxValue=2, showMinMaxField=False, showValueField=True, textWidth=70, sliderWidth=190)
+
         self.selectAllCB = QtWidgets.QCheckBox()
         self.createBTN = QtWidgets.QPushButton("Create")
         self.createBTN.setEnabled(False)
@@ -930,6 +1138,17 @@ class ktVeggieImporter(QtWidgets.QDialog):
         self.folderPathLYT.addWidget(QtWidgets.QLabel('Folder Path: '))
         self.folderPathLYT.addWidget(self.folderPathTXT)
         self.folderPathLYT.addWidget(self.folderPathBTN)
+
+
+        """ General Settings Path """
+        self.generalSetLYT = QtWidgets.QHBoxLayout()
+        self.generalSetLYT.addWidget(QtWidgets.QLabel('Size: '))
+        self.generalSetLYT.addWidget(self.scaleSLD)
+        self.generalSetLYT.addWidget(QtWidgets.QLabel(' '))
+        self.generalSetLYT.addWidget(QtWidgets.QLabel('Color: '))
+        self.generalSetLYT.addWidget(self.colorBTN)
+        self.generalSetLYT.addStretch()
+
 
         """ Execution"""
         self.execLYT = QtWidgets.QHBoxLayout()
@@ -975,6 +1194,7 @@ class ktVeggieImporter(QtWidgets.QDialog):
         """ MAIN """
         self.mainLayout.addLayout(self.textureTypeLYT)
         self.mainLayout.addLayout(self.folderPathLYT)
+        self.mainLayout.addLayout(self.generalSetLYT)
         self.mainLayout.addSpacing(25)
         self.mainLayout.addLayout(self.execLYT)
         self.mainLayout.addWidget(QtWidgets.QLabel('Objects'))
@@ -991,12 +1211,6 @@ class ktVeggieImporter(QtWidgets.QDialog):
 #region UI
 
     def onClick_folderPathBTN(self, filePath):
-        """
-        Handles folder selection and triggers texture loading.
-
-        Args:
-            filePath (str): The selected folder path.
-        """
         if filePath:
             self.folderPathTXT.setText(filePath)
             if self.folderPathTXT.text():
@@ -1005,33 +1219,27 @@ class ktVeggieImporter(QtWidgets.QDialog):
                 
 
     def onClick_rootPathBTN(self, node):
-        """
-        Validates and sets the selected Material Library node.
-
-        Ensures the selected node is a Material Library and updates the UI accordingly.
-
-        Args:
-            node (hou.Node): The selected Houdini node.
-        """
         if node:
             self.rootPathTXT.setText(str(node.path()))
 
 
     def onClick_createBTN(self):
-        """
-        Creates textures inside the selected Material Library.
 
-        Uses the imported texture data to generate texture nodes inside 
-        the specified Houdini Material Library.
-        """
+        self.clearLayout(self.objLYT)
+        self.clearLayout(self.texLYT)
+
         parentNode = hou.node(self.rootPathTXT.text())
+        scale = self.scaleSLD.getValue()
+        colorWidget = self.colorBTN.color()
+        r, g, b, a = colorWidget.getRgbF()
+        color = hou.Color((r, g, b))
         
         if parentNode:
             folderPath = self.folderPathTXT.text() 
 
             for objItem in self.objList:
                 if objItem.selectedCB.isChecked():
-                    objItem.obj.createComponent(parentNode, folderPath)
+                    objItem.obj.createComponent(parentNode, folderPath, scale, color)
                     materialNode = objItem.obj.materialLibrary
                     if materialNode:
                         for tex in self.texList:
@@ -1044,7 +1252,7 @@ class ktVeggieImporter(QtWidgets.QDialog):
                     objItem.obj.connectTextures()
                     #objItem.obj.showInformation()
 
-            #parentNode.layoutChildren()
+            parentNode.layoutChildren()
         else:
             self.showMessageError("A material Library needs to be selected")
 
@@ -1054,30 +1262,44 @@ class ktVeggieImporter(QtWidgets.QDialog):
 
         If checked, all textures in the list are selected for import.
         """
-        if self.selectAllCB.isChecked():
-            self.checkAllTextures()
-            self.checkAllObjects()
+        checkValue = self.selectAllCB.isChecked()
 
-    def checkAllTextures(self):
-        """
-        Selects or deselects all texture checkboxes based on the "Select All" state.
-        """
+        if self.objList:
+            self.checkAllTextures(checkValue)
+        
         if self.texList:
-            for textureWD in self.texList:
-                textureWD.selectedCB.setChecked(self.selectAllCB.isChecked())
+            self.checkAllObjects(checkValue)
+
     
-    def checkAllObjects(self):
+    def clearLayout(self, layout):
+        """
+        Clears all widgets and items from a given layout.
+
+        Args:
+            layout (QLayout): The layout to be cleared.
+        """
+        self.selectAllCB.setChecked(False)
+        for i in reversed(range(layout.count())):
+            item = layout.itemAt(i)
+            if item.widget(): 
+                widgetToRemove = item.widget()
+                layout.removeWidget(widgetToRemove)
+                widgetToRemove.setParent(None)
+            else: 
+                layout.removeItem(item)
+
+#endregion
+
+#region Objects
+
+    def checkAllObjects(self, checkValue):
         """
         Selects or deselects all texture checkboxes based on the "Select All" state.
         """
         if self.objList:
             for objectWD in self.objList:
-                objectWD.selectedCB.setChecked(self.selectAllCB.isChecked())
+                objectWD.selectedCB.setChecked(checkValue)
 
-
-#endregion
-
-#region Objects
     def loadObjects(self):
         self.objList = []
         folderPath = self.folderPathTXT.text()
@@ -1146,6 +1368,14 @@ class ktVeggieImporter(QtWidgets.QDialog):
 
 #region Textures
 
+    def checkAllTextures(self, checkValue):
+        """
+        Selects or deselects all texture checkboxes based on the "Select All" state.
+        """
+        if self.texList:
+            for textureWD in self.texList:
+                textureWD.selectedCB.setChecked(checkValue)
+
     def loadTextures(self):
         """
         Loads textures from the selected folder based on the current pattern.
@@ -1206,6 +1436,10 @@ class ktVeggieImporter(QtWidgets.QDialog):
         try:
             # Loop through files in the directory
             for root, dirs, files in os.walk(folderPath):
+                ignoreFolders = {"usd", "temp", "cache","export"}
+                dirs[:] = [d for d in dirs if d.lower() not in ignoreFolders]
+
+
                 for filename in files:
                     if filename.endswith((".exr", ".png", ".jpg")):  # Filter by file type
                         match = re.match(regexPattern, filename)
