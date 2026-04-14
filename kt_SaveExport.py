@@ -1214,6 +1214,10 @@ class ktVeggieImporter(QtWidgets.QDialog):
         if filePath:
             self.folderPathTXT.setText(filePath)
             if self.folderPathTXT.text():
+
+                self.clearLayout(self.objLYT)
+                self.clearLayout(self.texLYT)
+
                 self.loadObjects()
                 self.loadTextures()
                 
@@ -1224,10 +1228,6 @@ class ktVeggieImporter(QtWidgets.QDialog):
 
 
     def onClick_createBTN(self):
-
-        self.clearLayout(self.objLYT)
-        self.clearLayout(self.texLYT)
-
         parentNode = hou.node(self.rootPathTXT.text())
         scale = self.scaleSLD.getValue()
         colorWidget = self.colorBTN.color()
