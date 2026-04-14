@@ -9,37 +9,6 @@ except ImportError:
     from PySide2 import QtCore, QtWidgets, QtGui
 
 
-
-def exportComponentUSD(kwargs):
-    '''
-    node = hou.node('/stage/Dead_Common_Bush_01')
-    node.parm("execute").pressButton()
-    '''
-
-    nodeRoot = hou.node('/stage')
-    nodeList = getAllNodes(nodeRoot)
-
-    
-    # 'componentoutput'
-    for node in nodeList:
-        tempNode = hou.node(node)
-        nodeType = tempNode.type().name()
-        if nodeType == 'componentoutput':
-            tempNode.parm("execute").pressButton()
-            #print(tempNode)
-
-def getAllNodes(node, nodeList = None, level = 0):
-    if nodeList is None:
-        nodeList = []
-    #print(" " * level + node.name())
-    nodeList.append(node.path())
-
-    for child in node.children():
-        getAllNodes(child, nodeList, level + 1)
-
-    return nodeList
-
-
 #region Objects
 class Texture(object):
     """
@@ -1112,14 +1081,18 @@ class ktVeggieImporter(QtWidgets.QDialog):
         self.folderPathBTN.setFileChooserFilter(hou.fileType.Directory)
 
         self.colorBTN = hou.qt.ColorField()
-        self.scaleSLD = ktRangeSlider(devValue=1, minValue=0.01, maxValue=2, showMinMaxField=False, showValueField=True, textWidth=70, sliderWidth=190)
+        self.scaleSLD = ktRangeSlider(devValue=1, minValue=0.01, maxValue=2, showMinMaxField=False, showValueField=True, textWidth=50, sliderWidth=150)
+
+        self.mergeCB = QtWidgets.QCheckBox("")
+        self.exportUsdBTN = QtWidgets.QPushButton("Export USD")
+        self.exportUsdBTN.setFixedHeight(35)
 
         self.selectAllCB = QtWidgets.QCheckBox()
         self.createBTN = QtWidgets.QPushButton("Create")
         self.createBTN.setEnabled(False)
         self.clearBTN = QtWidgets.QPushButton("Clear")
         self.clearBTN.setFixedWidth(60)
-        self.clearBTN.setFixedHeight(34)
+        self.clearBTN.setFixedHeight(35)
         self.clearBTN.setStyleSheet("padding: 0px;")
             
     def createLayouts(self):
@@ -1142,11 +1115,12 @@ class ktVeggieImporter(QtWidgets.QDialog):
 
         """ General Settings Path """
         self.generalSetLYT = QtWidgets.QHBoxLayout()
-        self.generalSetLYT.addWidget(QtWidgets.QLabel('Size: '))
+        self.generalSetLYT.addWidget(QtWidgets.QLabel('Size:'))
         self.generalSetLYT.addWidget(self.scaleSLD)
-        self.generalSetLYT.addWidget(QtWidgets.QLabel(' '))
-        self.generalSetLYT.addWidget(QtWidgets.QLabel('Color: '))
+        self.generalSetLYT.addWidget(QtWidgets.QLabel('   Color:'))
         self.generalSetLYT.addWidget(self.colorBTN)
+        self.generalSetLYT.addWidget(QtWidgets.QLabel('   Merge:'))
+        self.generalSetLYT.addWidget(self.mergeCB)
         self.generalSetLYT.addStretch()
 
 
@@ -1157,11 +1131,12 @@ class ktVeggieImporter(QtWidgets.QDialog):
         self.execLYT.addStretch()
         self.execLYT.addWidget(self.createBTN)
         self.execLYT.addWidget(self.clearBTN)
+        self.execLYT.addWidget(self.exportUsdBTN)
 
 
         """ OBJECT CONTAINER """
         self.objScroll = QtWidgets.QScrollArea()             # Scroll Area which contains the widgets, set as the centralWidget
-        self.objScroll.setFixedHeight(400)
+        self.objScroll.setFixedHeight(360)
         self.objContainer = QtWidgets.QWidget()                 # Widget that contains the collection of Vertical Box
         self.objLYT = QtWidgets.QVBoxLayout()               # The Vertical Box that contains the Horizontal Boxes of  labels and buttons
         self.objLYT.setContentsMargins(0, 0, 0, 0)
@@ -1194,6 +1169,8 @@ class ktVeggieImporter(QtWidgets.QDialog):
         """ MAIN """
         self.mainLayout.addLayout(self.textureTypeLYT)
         self.mainLayout.addLayout(self.folderPathLYT)
+        self.mainLayout.addWidget(QtWidgets.QLabel(' '))  
+        self.mainLayout.addWidget(QtWidgets.QLabel('General Settings'))
         self.mainLayout.addLayout(self.generalSetLYT)
         self.mainLayout.addSpacing(25)
         self.mainLayout.addLayout(self.execLYT)
@@ -1207,6 +1184,7 @@ class ktVeggieImporter(QtWidgets.QDialog):
         self.rootPathBTN.nodeSelected.connect(self.onClick_rootPathBTN)
         self.createBTN.clicked.connect(self.onClick_createBTN)
         self.selectAllCB.clicked.connect(self.onChange_selectAllCB)
+        self.exportUsdBTN.clicked.connect(self.onClick_exportUsdBTN)
 
 #region UI
 
@@ -1237,22 +1215,35 @@ class ktVeggieImporter(QtWidgets.QDialog):
         if parentNode:
             folderPath = self.folderPathTXT.text() 
 
-            for objItem in self.objList:
-                if objItem.selectedCB.isChecked():
-                    objItem.obj.createComponent(parentNode, folderPath, scale, color)
-                    materialNode = objItem.obj.materialLibrary
-                    if materialNode:
-                        for tex in self.texList:
-                            #tex = ktTextureWidget() # type: ktTextureWidget
-                            if tex.selectedCB.isChecked():
-                                tex.texture.createTexture(materialNode, folderPath)
+            if self.objList:
+                if self.mergeCB.isChecked():
+                    # Create merge node
+                    mergeNode = parentNode.createNode('merge')
 
-                        materialNode.layoutChildren()
+                for objItem in self.objList:
+                    if objItem.selectedCB.isChecked():
+                        objItem.obj.createComponent(parentNode, folderPath, scale, color)
+                        materialNode = objItem.obj.materialLibrary
+                        if materialNode:
+                            if self.texList:
+                                for tex in self.texList:
+                                    #tex = ktTextureWidget() # type: ktTextureWidget
+                                    if tex.selectedCB.isChecked():
+                                        tex.texture.createTexture(materialNode, folderPath)
+                                materialNode.layoutChildren()
+                                objItem.obj.connectTextures()
+                        if self.mergeCB.isChecked():
+                            #connect to merge node
+                            outputNode = objItem.obj.compOutNode
+                            mergeNode.setNextInput(outputNode)
+                            
 
-                    objItem.obj.connectTextures()
-                    #objItem.obj.showInformation()
+                parentNode.layoutChildren()
 
-            parentNode.layoutChildren()
+                
+
+            else:
+                self.showMessageError("No object has been selected to create")
         else:
             self.showMessageError("A material Library needs to be selected")
 
@@ -1269,6 +1260,19 @@ class ktVeggieImporter(QtWidgets.QDialog):
         
         if self.texList:
             self.checkAllObjects(checkValue)
+
+    def onClick_exportUsdBTN(self):
+
+        exported = self.exportComponentUSD()
+
+        if exported:
+            msg = QtWidgets.QMessageBox()
+            msg.setIcon(QtWidgets.QMessageBox.Information)
+            msg.setText("Export complete.")
+            msg.setWindowTitle("Export Status")
+            msg.exec_()
+        else:
+            self.showMessageError("Export couldn't process.")
 
     
     def clearLayout(self, layout):
@@ -1523,6 +1527,43 @@ class ktVeggieImporter(QtWidgets.QDialog):
             finalPath = folderPath
 
         return finalPath
+    
+
+    def exportComponentUSD(self):
+        '''
+        node = hou.node('/stage/Dead_Common_Bush_01')
+        node.parm("execute").pressButton()
+        '''
+
+        def getAllNodes(node, nodeList = None, level = 0):
+            if nodeList is None:
+                nodeList = []
+            #print(" " * level + node.name())
+            nodeList.append(node.path())
+
+            for child in node.children():
+                getAllNodes(child, nodeList, level + 1)
+
+            return nodeList
+
+
+        parentNode = hou.node(self.rootPathTXT.text())
+        nodeList = getAllNodes(parentNode)
+
+        if nodeList:
+        
+            # 'componentoutput'
+            for node in nodeList:
+                tempNode = hou.node(node)
+                nodeType = tempNode.type().name()
+                if nodeType == 'componentoutput':
+                    tempNode.parm("execute").pressButton()
+            return True
+        
+        else:
+            return False
+
+        
 #endregion
 
 
