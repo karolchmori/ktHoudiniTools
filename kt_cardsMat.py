@@ -38,6 +38,9 @@ def importCardStage(kwargs):
     materialLibrary.setInput(0, sopImport)
 
     renderGeo = folderParent.createNode('rendergeometrysettings', f'{cardsName}_RGS')
+    renderGeo.parm("primpattern").set(f"/{cardsName}")
+    renderGeo.parm("xn__primvarskarmaobjectrendervisibility_control_5bcfg").set("set")
+    renderGeo.parm("xn__primvarskarmaobjectrendervisibility_4xbfg").set("primary")
 
     renderGeo.setInput(0, materialLibrary)
 
@@ -65,6 +68,7 @@ def createMaterial(parentNode, name, invertValue, opacity=None,):
     baseColorNode.parm("geomprop").set("displayColor")
     standardSurfaceNode.setNamedInput("base_color", baseColorNode, "out")
 
+    standardSurfaceNode.parm("specular").set(0)
 
     if opacity:
         opacityNode = materialBuilderNode.createNode(imageType, f"{name}_OP")
