@@ -9,12 +9,10 @@ def importCardStage(kwargs):
 
     # Get values
     cardsName = hda.parm("cardsName").eval()
-    matShape = hda.parm("matShape") #Links the node itself instead of the filepath
+    matShape = hda.parm("matShape") #Links the parm value itself instead of the filepath
     matInvert = hda.parm("matInvert")
-    sopPath = hda.node("OUT_CARDS")
+    sopPath = hda.node("OUT_CARDS").path()
 
-    print(sopPath)
-    
 
     # Lauch Import
     root = hda.node('/stage')
@@ -27,6 +25,7 @@ def importCardStage(kwargs):
     
 
     sopImport = folderParent.createNode('sopimport', cardsName)
+    sopImport.parm("soppath").set(sopPath)
     
 
     materialLibrary = folderParent.createNode('materiallibrary', f'{cardsName}_ML')
